@@ -1,4 +1,4 @@
-﻿using AI_Panel_v2.ViewModels;
+using AI_Panel_v2.ViewModels;
 
 using Microsoft.UI.Xaml.Controls;
 
@@ -16,6 +16,7 @@ public sealed partial class WebViewPage : Page
     {
         ViewModel = App.GetService<WebViewViewModel>();
         InitializeComponent();
+        NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
 
         ViewModel.WebViewService.Initialize(WebView);
     }

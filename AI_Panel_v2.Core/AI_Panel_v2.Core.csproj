@@ -1,9 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>AI_Panel_v2.Core</RootNamespace>
-    <Platforms>AnyCPU;x64;x86</Platforms>
-    <Platforms>x86;x64;arm64;AnyCPU</Platforms>
+    <Platforms>x86;x64;arm64</Platforms>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 

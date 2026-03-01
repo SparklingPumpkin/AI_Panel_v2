@@ -6,7 +6,13 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid x:Name="ContentArea">
+    <ScrollViewer
+        HorizontalScrollBarVisibility="Auto"
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollMode="Enabled"
+        VerticalScrollMode="Enabled">
+        <Grid x:Name="ContentArea">
         
-    </Grid>
+        </Grid>
+    </ScrollViewer>
 </Page>

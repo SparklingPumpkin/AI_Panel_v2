@@ -1,5 +1,7 @@
 ﻿using AI_Panel_v2.Contracts.Services;
 using AI_Panel_v2.Contracts.ViewModels;
+using AI_Panel_v2.Helpers;
+using AI_Panel_v2.Models;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,9 +16,10 @@ namespace AI_Panel_v2.ViewModels;
 // https://docs.microsoft.com/microsoft-edge/webview2/concepts/distribution
 public partial class WebViewViewModel : ObservableRecipient, INavigationAware
 {
+    private const string FallbackWebUrl = "https://docs.microsoft.com/windows/apps/";
     // TODO: Set the default URL to display.
     [ObservableProperty]
-    private Uri source = new("https://docs.microsoft.com/windows/apps/");
+    private Uri source = new(FallbackWebUrl);
 
     [ObservableProperty]
     private bool isLoading = true;
@@ -24,14 +27,17 @@ public partial class WebViewViewModel : ObservableRecipient, INavigationAware
     [ObservableProperty]
     private bool hasFailures;
 
+    private readonly ILocalSettingsService _localSettingsService;
+
     public IWebViewService WebViewService
     {
         get;
     }
 
-    public WebViewViewModel(IWebViewService webViewService)
+    public WebViewViewModel(IWebViewService webViewService, ILocalSettingsService localSettingsService)
     {
         WebViewService = webViewService;
+        _localSettingsService = localSettingsService;
     }
 
     [RelayCommand]
@@ -77,9 +83,30 @@ public partial class WebViewViewModel : ObservableRecipient, INavigationAware
         return WebViewService.CanGoBack;
     }
 
-    public void OnNavigatedTo(object parameter)
+    public async void OnNavigatedTo(object parameter)
     {
-        WebViewService.NavigationCompleted += OnNavigationCompleted;
+        try
+        {
+            var targetSource = await ResolveSourceAsync(parameter);
+            if (Uri.Compare(Source, targetSource, UriComponents.AbsoluteUri, UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                IsLoading = false;
+                HasFailures = false;
+                return;
+            }
+
+            IsLoading = true;
+            HasFailures = false;
+            Source = targetSource;
+            WebViewService.NavigationCompleted -= OnNavigationCompleted;
+            WebViewService.NavigationCompleted += OnNavigationCompleted;
+        }
+        catch
+        {
+            Source = new Uri(FallbackWebUrl);
+            IsLoading = false;
+            HasFailures = true;
+        }
     }
 
     public void OnNavigatedFrom()
@@ -106,5 +133,25 @@ public partial class WebViewViewModel : ObservableRecipient, INavigationAware
         HasFailures = false;
         IsLoading = true;
         WebViewService?.Reload();
+    }
+
+    private async Task<Uri> ResolveSourceAsync(object parameter)
+    {
+        var webItems = await _localSettingsService.ReadSettingAsync<List<WebItemSetting>>(AppSettingKeys.WebItems);
+        if (parameter is int index && webItems != null && index >= 0 && index < webItems.Count)
+        {
+            var itemUrl = webItems[index].Url;
+            if (Uri.TryCreate(itemUrl, UriKind.Absolute, out var itemUri))
+            {
+                return itemUri;
+            }
+        }
+
+        if (webItems != null && webItems.Count > 0 && Uri.TryCreate(webItems[0].Url, UriKind.Absolute, out var firstItemUri))
+        {
+            return firstItemUri;
+        }
+
+        return new Uri(FallbackWebUrl);
     }
 }

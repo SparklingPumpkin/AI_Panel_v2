@@ -18,4 +18,11 @@ public class NavigationHelper
 
     public static readonly DependencyProperty NavigateToProperty =
         DependencyProperty.RegisterAttached("NavigateTo", typeof(string), typeof(NavigationHelper), new PropertyMetadata(null));
+
+    public static object? GetNavigationParameter(NavigationViewItem item) => item.GetValue(NavigationParameterProperty);
+
+    public static void SetNavigationParameter(NavigationViewItem item, object? value) => item.SetValue(NavigationParameterProperty, value);
+
+    public static readonly DependencyProperty NavigationParameterProperty =
+        DependencyProperty.RegisterAttached("NavigationParameter", typeof(object), typeof(NavigationHelper), new PropertyMetadata(null));
 }

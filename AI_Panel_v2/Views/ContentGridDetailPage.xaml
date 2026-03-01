@@ -29,6 +29,10 @@
         </VisualStateManager.VisualStateGroups>
 
         <ScrollViewer
+            HorizontalScrollBarVisibility="Auto"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollMode="Enabled"
+            VerticalScrollMode="Enabled"
             IsTabStop="True">
             <StackPanel
                 x:Name="contentPanel">

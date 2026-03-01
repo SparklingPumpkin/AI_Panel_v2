@@ -4,64 +4,209 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
     xmlns:helpers="using:AI_Panel_v2.Helpers"
     xmlns:xaml="using:Microsoft.UI.Xaml"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    KeyDown="Page_KeyDown">
     <Page.Resources>
         <helpers:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+        <Style x:Key="SectionCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        </Style>
     </Page.Resources>
-    <Grid>
-        <StackPanel
-            x:Name="ContentArea">
-            <TextBlock x:Uid="Settings_Personalization" Style="{ThemeResource SubtitleTextBlockStyle}" />
-            <StackPanel Margin="{StaticResource SmallTopBottomMargin}">
-                <TextBlock x:Uid="Settings_Theme" />
+    <ScrollViewer
+        HorizontalScrollBarVisibility="Auto"
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollMode="Enabled"
+        VerticalScrollMode="Enabled">
+        <Grid x:Name="SettingsLayoutRoot" Margin="18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-                <StackPanel Margin="{StaticResource XSmallTopMargin}">
-                    <RadioButton
-                        x:Uid="Settings_Theme_Light"
-                        Command="{x:Bind ViewModel.SwitchThemeCommand}"
-                        IsChecked="{x:Bind ViewModel.ElementTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Light, Mode=OneWay}"
-                        FontSize="15"
-                        GroupName="AppTheme">
-                        <RadioButton.CommandParameter>
-                            <xaml:ElementTheme>Light</xaml:ElementTheme>
-                        </RadioButton.CommandParameter>
-                    </RadioButton>
-                    <RadioButton
-                        x:Uid="Settings_Theme_Dark"
-                        Command="{x:Bind ViewModel.SwitchThemeCommand}"
-                        IsChecked="{x:Bind ViewModel.ElementTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Dark, Mode=OneWay}"
-                        FontSize="15"
-                        GroupName="AppTheme">
-                        <RadioButton.CommandParameter>
-                            <xaml:ElementTheme>Dark</xaml:ElementTheme>
-                        </RadioButton.CommandParameter>
-                    </RadioButton>
-                    <RadioButton
-                        x:Uid="Settings_Theme_Default"
-                        Command="{x:Bind ViewModel.SwitchThemeCommand}"
-                        IsChecked="{x:Bind ViewModel.ElementTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Default, Mode=OneWay}"
-                        FontSize="15"
-                        GroupName="AppTheme">
-                        <RadioButton.CommandParameter>
-                            <xaml:ElementTheme>Default</xaml:ElementTheme>
-                        </RadioButton.CommandParameter>
-                    </RadioButton>
-                </StackPanel>
+            <StackPanel x:Name="ContentArea" Grid.Column="0" Spacing="16" Margin="0,0,10,0">
+                <Border x:Name="PersonalizationCard"
+                        Style="{StaticResource SectionCardStyle}"
+                        PointerPressed="DraggableCard_PointerPressed"
+                        PointerMoved="DraggableCard_PointerMoved"
+                        PointerReleased="DraggableCard_PointerReleased"
+                        PointerCanceled="DraggableCard_PointerReleased">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <StackPanel>
+                        <TextBlock x:Uid="Settings_Personalization" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <StackPanel Margin="{StaticResource SmallTopBottomMargin}">
+                            <TextBlock x:Uid="Settings_Theme" />
+
+                            <Border Margin="{StaticResource XSmallTopMargin}" Style="{StaticResource SectionCardStyle}" Padding="10">
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <RadioButton
+                                        x:Name="ThemeLightRadioButton"
+                                        x:Uid="Settings_Theme_Light"
+                                        FontSize="15"
+                                        Checked="ThemeRadioButton_Checked"
+                                        GroupName="AppTheme" />
+                                    <RadioButton
+                                        x:Name="ThemeDarkRadioButton"
+                                        x:Uid="Settings_Theme_Dark"
+                                        FontSize="15"
+                                        Checked="ThemeRadioButton_Checked"
+                                        GroupName="AppTheme" />
+                                    <RadioButton
+                                        x:Name="ThemeDefaultRadioButton"
+                                        x:Uid="Settings_Theme_Default"
+                                        FontSize="15"
+                                        Checked="ThemeRadioButton_Checked"
+                                        GroupName="AppTheme" />
+                                    <RadioButton
+                                        x:Name="ThemeCustomRadioButton"
+                                        Content="Custom"
+                                        FontSize="15"
+                                        Checked="ThemeRadioButton_Checked"
+                                        GroupName="AppTheme" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Margin="0,14,0,0" Text="Theme Color (Applied to Theme)" />
+                            <StackPanel Margin="{StaticResource XSmallTopMargin}" Spacing="8">
+                                <Grid ColumnSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="220" />
+                                    </Grid.ColumnDefinitions>
+                                    <toolkit:ColorPicker
+                                        x:Name="AccentColorPicker"
+                                        Grid.Column="0"
+                                        Color="LightBlue"
+                                        ColorChanged="AccentColorPicker_ColorChanged"
+                                        IsAlphaEnabled="True"
+                                        IsAlphaSliderVisible="True"
+                                        IsColorPaletteVisible="True"
+                                        IsColorChannelTextInputVisible="True"
+                                        IsColorSliderVisible="True"
+                                        IsColorSpectrumVisible="True"
+                                        ShowAccentColors="True"
+                                        ColorSpectrumShape="Box" />
+                                    <StackPanel Grid.Column="1" Spacing="8">
+                                        <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Opacity" FontWeight="SemiBold" />
+                                                <TextBlock Text="IsAlphaEnabled" />
+                                                <ToggleSwitch x:Name="AlphaEnabledSwitch" IsOn="True" Toggled="AlphaEnabledSwitch_Toggled" />
+                                                <TextBlock Text="IsAlphaSliderVisible" />
+                                                <ToggleSwitch x:Name="AlphaSliderSwitch" IsOn="True" Toggled="AlphaSliderSwitch_Toggled" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Input / Slider" FontWeight="SemiBold" />
+                                                <TextBlock Text="IsColorSliderVisible" />
+                                                <ToggleSwitch x:Name="ColorSliderSwitch" IsOn="True" Toggled="ColorSliderSwitch_Toggled" />
+                                                <TextBlock Text="IsColorChannelTextInputVisible" />
+                                                <ToggleSwitch x:Name="ColorChannelSwitch" IsOn="True" Toggled="ColorChannelSwitch_Toggled" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Spectrum / Palette" FontWeight="SemiBold" />
+                                                <TextBlock Text="IsColorSpectrumVisible" />
+                                                <ToggleSwitch x:Name="SpectrumVisibleSwitch" IsOn="True" Toggled="SpectrumVisibleSwitch_Toggled" />
+                                                <TextBlock Text="IsColorPaletteVisible" />
+                                                <ToggleSwitch x:Name="ColorPaletteSwitch" IsOn="True" Toggled="ColorPaletteSwitch_Toggled" />
+                                                <TextBlock Text="ShowAccentColors" />
+                                                <ToggleSwitch x:Name="AccentColorsSwitch" IsOn="True" Toggled="AccentColorsSwitch_Toggled" />
+                                                <TextBlock Text="ColorSpectrumShape" />
+                                                <ComboBox x:Name="SpectrumShapeComboBox" SelectionChanged="SpectrumShapeComboBox_SelectionChanged">
+                                                    <x:String>Box</x:String>
+                                                    <x:String>Ring</x:String>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="AccentPaletteStatusTextBlock" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="HotkeyCard"
+                        Style="{StaticResource SectionCardStyle}"
+                        PointerPressed="DraggableCard_PointerPressed"
+                        PointerMoved="DraggableCard_PointerMoved"
+                        PointerReleased="DraggableCard_PointerReleased"
+                        PointerCanceled="DraggableCard_PointerReleased">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <StackPanel>
+                        <TextBlock Margin="0,0,0,8" Text="Global Hotkey" />
+                        <TextBlock x:Name="HotKeyTextBlock" />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="RecordHotKeyButton" Content="Record Hotkey" Click="RecordHotKeyButton_Click" />
+                            <Button Content="Save Hotkey" Click="SaveHotKeyButton_Click" />
+                            <TextBlock x:Name="HotKeyStatusTextBlock" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
-            <TextBlock x:Uid="Settings_About" Style="{ThemeResource SubtitleTextBlockStyle}" />
+            <StackPanel x:Name="RightColumnStack" Grid.Column="1" Spacing="16" Margin="10,0,0,0">
+                <Border x:Name="AboutCard"
+                        Style="{StaticResource SectionCardStyle}"
+                        PointerPressed="DraggableCard_PointerPressed"
+                        PointerMoved="DraggableCard_PointerMoved"
+                        PointerReleased="DraggableCard_PointerReleased"
+                        PointerCanceled="DraggableCard_PointerReleased">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <StackPanel>
+                        <TextBlock x:Uid="Settings_About" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}">
+                            <TextBlock Text="{x:Bind ViewModel.VersionDescription, Mode=OneWay}" Style="{ThemeResource BodyTextBlockStyle}" />
 
-            <StackPanel Margin="{StaticResource XSmallTopMargin}">
-                <TextBlock Text="{x:Bind ViewModel.VersionDescription, Mode=OneWay}" Style="{ThemeResource BodyTextBlockStyle}" />
+                            <TextBlock
+                                x:Uid="Settings_AboutDescription"
+                                Margin="{StaticResource XSmallTopMargin}"
+                                Style="{ThemeResource BodyTextBlockStyle}" />
+                            <HyperlinkButton x:Uid="SettingsPage_PrivacyTermsLink" Margin="{StaticResource SettingsPageHyperlinkButtonMargin}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
 
-                <TextBlock
-                    x:Uid="Settings_AboutDescription"
-                    Margin="{StaticResource XSmallTopMargin}"
-                    Style="{ThemeResource BodyTextBlockStyle}" />
-                <HyperlinkButton x:Uid="SettingsPage_PrivacyTermsLink" Margin="{StaticResource SettingsPageHyperlinkButtonMargin}" />
+                <Border x:Name="PageSettingsCard"
+                        Style="{StaticResource SectionCardStyle}"
+                        PointerPressed="DraggableCard_PointerPressed"
+                        PointerMoved="DraggableCard_PointerMoved"
+                        PointerReleased="DraggableCard_PointerReleased"
+                        PointerCanceled="DraggableCard_PointerReleased">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <StackPanel>
+                        <TextBlock Text="Page Settings" Style="{ThemeResource SubtitleTextBlockStyle}" />
+
+                        <TextBlock Margin="0,14,0,0" Text="Page Items" />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Spacing="3">
+                            <StackPanel x:Name="WebItemsEditorPanel" Spacing="0" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Add Page Item" Click="AddWebItemButton_Click" />
+                                <Button Content="Save Page Items" Click="SaveWebItemsButton_Click" />
+                                <TextBlock x:Name="WebItemsStatusTextBlock" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
-        </StackPanel>
-    </Grid>
+        </Grid>
+    </ScrollViewer>
 </Page>

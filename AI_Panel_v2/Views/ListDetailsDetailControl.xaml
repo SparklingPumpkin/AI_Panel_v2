@@ -8,6 +8,9 @@
     <ScrollViewer
         Name="ForegroundElement"
         HorizontalAlignment="Stretch"
+        HorizontalScrollBarVisibility="Auto"
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollMode="Enabled"
         VerticalScrollMode="Enabled"
         IsTabStop="True">
         <StackPanel HorizontalAlignment="Left">
