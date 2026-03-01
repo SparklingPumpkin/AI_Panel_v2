@@ -1,0 +1,10 @@
+﻿{
+    "profiles": {
+      "AI_Panel_v2 (Package)": {
+        "commandName": "MsixPackage"
+      },
+      "AI_Panel_v2 (Unpackaged)": {
+        "commandName": "Project"
+      }
+    }
+}

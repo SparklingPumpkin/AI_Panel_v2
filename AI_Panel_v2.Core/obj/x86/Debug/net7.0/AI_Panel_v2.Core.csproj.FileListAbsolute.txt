@@ -1,0 +1,12 @@
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\bin\x86\Debug\net7.0\AI_Panel_v2.Core.deps.json
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\bin\x86\Debug\net7.0\AI_Panel_v2.Core.dll
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\bin\x86\Debug\net7.0\AI_Panel_v2.Core.pdb
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.csproj.AssemblyReference.cache
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.GeneratedMSBuildEditorConfig.editorconfig
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.AssemblyInfoInputs.cache
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.AssemblyInfo.cs
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.csproj.CoreCompileInputs.cache
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.dll
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\refint\AI_Panel_v2.Core.dll
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\AI_Panel_v2.Core.pdb
+E:\Projects\Tools\AI_Panel_v2\AI_Panel_v2.Core\obj\x86\Debug\net7.0\ref\AI_Panel_v2.Core.dll
