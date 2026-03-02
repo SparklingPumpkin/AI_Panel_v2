@@ -4,6 +4,7 @@ using AI_Panel_v2.Models;
 using AI_Panel_v2.ViewModels;
 
 using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -38,6 +39,13 @@ public sealed partial class ShellPage : Page
     private const string FallbackWebUrl = "https://docs.microsoft.com/windows/apps/";
     private readonly ILocalSettingsService _localSettingsService;
     private Brush? _customSecondLightBrush;
+    private Color? _customAccentColor;
+    private string? _backgroundImagePath;
+    private double _backgroundImageOpacity = 1.0;
+    private double _backgroundImageBlur;
+    private double _themeOpacity = 1.0;
+    private double _themeBlur;
+    private bool _isChromeHiddenByWebCard;
     private bool _isCustomChromeApplied;
     private readonly List<NavigationViewItem> _dynamicWebItems = new();
     private readonly List<NavigationViewItem> _dynamicPageItems = new();
@@ -100,28 +108,39 @@ public sealed partial class ShellPage : Page
         NavigateToFirstWebItemOnStartup();
         UpdateCloseButtonsVisibility();
         await ApplySavedChromeThemeAsync();
+        await ApplySavedBackgroundImageAsync();
+        await ApplySavedProgramTypographyAsync();
+        ApplyNavigationContrastBrush();
         ApplyPinPressedVisual();
     }
 
-    public void ApplyCustomChromeTheme(Color accent)
+    public void ApplyCustomChromeTheme(Color accent, double themeOpacity = 1.0, double themeBlur = 0)
     {
+        _customAccentColor = accent;
+        _themeOpacity = Math.Clamp(themeOpacity, 0, 1);
+        _themeBlur = Math.Clamp(themeBlur, 0, 30);
         var darkest = Blend(accent, Colors.Black, 0.55);
         var secondDark = Blend(accent, Colors.Black, 0.35);
-        var middle = Color.FromArgb(0xFF, accent.R, accent.G, accent.B);
+        var middle = Color.FromArgb((byte)Math.Round(255 * _themeOpacity), accent.R, accent.G, accent.B);
         var secondLight = Blend(accent, Colors.White, 0.65);
+        var middleBrush = CreateAcrylicTintBrush(middle, _themeBlur, _themeOpacity);
 
-        AppTitleBar.Background = new SolidColorBrush(middle);
-        RootLayout.Background = new SolidColorBrush(middle);
-        ApplyPaneBrushOverrides(new SolidColorBrush(middle));
-        ApplyAppBrushOverrides(darkest, secondDark, secondLight);
+        AppTitleBar.Background = middleBrush;
+        RootLayout.Background = middleBrush;
+        ApplyPaneBrushOverrides(middleBrush);
+        ApplyAppBrushOverrides(darkest, secondDark, secondLight, _themeOpacity);
         PinToggleButton.Foreground = new SolidColorBrush(secondDark);
         _customSecondLightBrush = new SolidColorBrush(secondLight);
         _isCustomChromeApplied = true;
+        ApplyBackgroundImageOverlayIfAvailable();
+        ApplyNavigationContrastBrush();
         ApplyPinPressedVisual();
     }
 
     public void ClearCustomChromeTheme()
     {
+        _customAccentColor = null;
+        _themeBlur = 0;
         if (Application.Current.Resources.TryGetValue("ApplicationPageBackgroundThemeBrush", out var pageBrush) && pageBrush is Brush pageBackground)
         {
             RootLayout.Background = pageBackground;
@@ -138,10 +157,48 @@ public sealed partial class ShellPage : Page
         PinToggleButton.ClearValue(Control.BackgroundProperty);
         _customSecondLightBrush = null;
         _isCustomChromeApplied = false;
+        ApplyBackgroundImageOverlayIfAvailable();
+        ApplyNavigationContrastBrush();
+    }
+
+    public void ApplyBackgroundImage(string? path, double opacity = 1.0, double blur = 0)
+    {
+        _backgroundImagePath = string.IsNullOrWhiteSpace(path) ? null : path;
+        _backgroundImageOpacity = Math.Clamp(opacity, 0, 1);
+        _backgroundImageBlur = Math.Clamp(blur, 0, 30);
+
+        if (ApplyBackgroundImageOverlayIfAvailable())
+        {
+            return;
+        }
+
+        if (_isCustomChromeApplied && _customAccentColor.HasValue)
+        {
+            ApplyCustomChromeTheme(_customAccentColor.Value, _themeOpacity, _themeBlur);
+            return;
+        }
+
+        if (Application.Current.Resources.TryGetValue("ApplicationPageBackgroundThemeBrush", out var pageBrush) && pageBrush is Brush pageBackground)
+        {
+            RootLayout.Background = pageBackground;
+        }
+
+        if (Application.Current.Resources.TryGetValue("LayerFillColorDefaultBrush", out var layerBrush) && layerBrush is Brush layerBackground)
+        {
+            AppTitleBar.Background = layerBackground;
+        }
+
+        RemovePaneBrushOverrides();
+        ApplyNavigationContrastBrush();
     }
 
     private async Task ApplySavedChromeThemeAsync()
     {
+        var savedThemeOpacity = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.ThemeColorOpacity);
+        _themeOpacity = Math.Clamp(savedThemeOpacity ?? 1.0, 0, 1);
+        var savedThemeBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.ThemeColorBlur);
+        _themeBlur = Math.Clamp(savedThemeBlur ?? 0, 0, 30);
+
         var themeMode = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.ThemeMode);
         if (!string.Equals(themeMode, "Custom", StringComparison.OrdinalIgnoreCase))
         {
@@ -152,12 +209,154 @@ public sealed partial class ShellPage : Page
         var accentColorText = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.AccentColor);
         if (AccentPaletteHelper.TryParseHex(accentColorText, out var customAccent))
         {
-            ApplyCustomChromeTheme(customAccent);
+            ApplyCustomChromeTheme(customAccent, _themeOpacity, _themeBlur);
             return;
         }
 
         var paletteName = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.AccentPalette);
-        ApplyCustomChromeTheme(AccentPaletteHelper.GetByName(paletteName).Accent);
+        ApplyCustomChromeTheme(AccentPaletteHelper.GetByName(paletteName).Accent, _themeOpacity, _themeBlur);
+    }
+
+    private async Task ApplySavedBackgroundImageAsync()
+    {
+        _backgroundImagePath = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.BackgroundImagePath);
+        var savedImageOpacity = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.BackgroundImageOpacity);
+        _backgroundImageOpacity = Math.Clamp(savedImageOpacity ?? 1.0, 0, 1);
+        var savedImageBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.BackgroundImageBlur);
+        _backgroundImageBlur = Math.Clamp(savedImageBlur ?? 0, 0, 30);
+        ApplyBackgroundImageOverlayIfAvailable();
+        ApplyNavigationContrastBrush();
+    }
+
+    public void ApplyProgramFontFamily(string? fontFamily)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(fontFamily) ? string.Empty : fontFamily.Trim();
+        var toApply = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+
+        if (toApply == null)
+        {
+            NavigationViewControl.ClearValue(Control.FontFamilyProperty);
+            NavigationFrame.ClearValue(Control.FontFamilyProperty);
+            AppTitleBarText.ClearValue(Control.FontFamilyProperty);
+            return;
+        }
+
+        var font = new FontFamily(toApply);
+        NavigationViewControl.FontFamily = font;
+        NavigationFrame.FontFamily = font;
+        AppTitleBarText.FontFamily = font;
+    }
+
+    public void ApplyProgramTextStyle(double? fontSize, bool isBold, bool isItalic)
+    {
+        if (fontSize.HasValue && fontSize.Value > 0)
+        {
+            NavigationViewControl.FontSize = fontSize.Value;
+            NavigationFrame.FontSize = fontSize.Value;
+            AppTitleBarText.FontSize = fontSize.Value;
+        }
+        else
+        {
+            NavigationViewControl.ClearValue(Control.FontSizeProperty);
+            NavigationFrame.ClearValue(Control.FontSizeProperty);
+            AppTitleBarText.ClearValue(Control.FontSizeProperty);
+        }
+
+        var fontWeight = isBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+        var fontStyle = isItalic ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal;
+        NavigationViewControl.FontWeight = fontWeight;
+        NavigationFrame.FontWeight = fontWeight;
+        AppTitleBarText.FontWeight = fontWeight;
+        NavigationViewControl.FontStyle = fontStyle;
+        NavigationFrame.FontStyle = fontStyle;
+        AppTitleBarText.FontStyle = fontStyle;
+    }
+
+    private async Task ApplySavedProgramTypographyAsync()
+    {
+        var savedFontFamily = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.ProgramFontFamily);
+        var savedFontSize = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.ProgramFontSize);
+        var savedBold = await _localSettingsService.ReadSettingAsync<bool?>(AppSettingKeys.ProgramFontBold);
+        var savedItalic = await _localSettingsService.ReadSettingAsync<bool?>(AppSettingKeys.ProgramFontItalic);
+        ApplyProgramFontFamily(savedFontFamily);
+        ApplyProgramTextStyle(savedFontSize.HasValue && savedFontSize.Value > 0 ? savedFontSize : null, savedBold == true, savedItalic == true);
+    }
+
+    public bool IsChromeHiddenForWebCard => _isChromeHiddenByWebCard;
+
+    public void SetChromeHiddenForWebCard(bool hide)
+    {
+        _isChromeHiddenByWebCard = hide;
+        AppTitleBar.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
+        AppTitleBar.Height = hide ? 0 : 32;
+        AppTitleBar.IsHitTestVisible = !hide;
+        NavigationViewControl.IsPaneVisible = !hide;
+        NavigationViewControl.IsTitleBarAutoPaddingEnabled = !hide;
+        NavigationViewControl.IsBackButtonVisible = hide ? NavigationViewBackButtonVisible.Collapsed : NavigationViewBackButtonVisible.Visible;
+        NavigationViewControl.IsSettingsVisible = !hide;
+
+        if (App.MainWindow is MainWindow mainWindow)
+        {
+            mainWindow.PresenterKind = hide ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped;
+        }
+    }
+
+    private bool ApplyBackgroundImageOverlayIfAvailable()
+    {
+        if (string.IsNullOrWhiteSpace(_backgroundImagePath) || !File.Exists(_backgroundImagePath))
+        {
+            BackgroundBlurOverlay.Visibility = Visibility.Collapsed;
+            return false;
+        }
+
+        var imageUri = new Uri(_backgroundImagePath);
+        RootLayout.Background = new ImageBrush
+        {
+            ImageSource = new BitmapImage(imageUri),
+            Opacity = _backgroundImageOpacity,
+            Stretch = Stretch.UniformToFill
+        };
+        // Keep title bar transparent so it reuses the same root image and stays seamlessly aligned.
+        AppTitleBar.Background = new SolidColorBrush(Colors.Transparent);
+        UpdateBackgroundBlurOverlay();
+
+        return true;
+    }
+
+    private void UpdateBackgroundBlurOverlay()
+    {
+        if (_backgroundImageBlur <= 0)
+        {
+            BackgroundBlurOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var intensity = Math.Clamp(_backgroundImageBlur / 30.0, 0, 1);
+        var tintOpacity = Math.Clamp(0.62 - (0.52 * intensity), 0.08, 0.62);
+        BackgroundBlurOverlay.Background = new AcrylicBrush
+        {
+            TintColor = Color.FromArgb(0xFF, 0xF5, 0xF5, 0xF5),
+            TintOpacity = tintOpacity,
+            FallbackColor = Color.FromArgb((byte)Math.Round(255 * Math.Clamp(0.10 + (0.20 * (1 - intensity)), 0.08, 0.30)), 0xF5, 0xF5, 0xF5)
+        };
+        BackgroundBlurOverlay.Visibility = Visibility.Visible;
+    }
+
+    private static Brush CreateAcrylicTintBrush(Color tintColor, double blur, double opacity)
+    {
+        if (blur <= 0)
+        {
+            return new SolidColorBrush(tintColor);
+        }
+
+        var intensity = Math.Clamp(blur / 30.0, 0, 1);
+        var baseOpacity = Math.Clamp(0.78 - (0.58 * intensity), 0.14, 0.78);
+        return new AcrylicBrush
+        {
+            TintColor = Color.FromArgb(0xFF, tintColor.R, tintColor.G, tintColor.B),
+            TintOpacity = Math.Clamp(baseOpacity * Math.Max(0.22, opacity), 0.08, 0.92),
+            FallbackColor = tintColor
+        };
     }
 
     private void ApplyPaneBrushOverrides(Brush paneBrush)
@@ -182,20 +381,25 @@ public sealed partial class ShellPage : Page
         NavigationViewControl.Resources.Remove("NavigationViewLeftPaneBackground");
     }
 
-    private static void ApplyAppBrushOverrides(Color darkest, Color secondDark, Color secondLight)
+    private static void ApplyAppBrushOverrides(Color darkest, Color secondDark, Color secondLight, double opacity)
     {
+        var alpha = (byte)Math.Round(255 * Math.Clamp(opacity, 0, 1));
+        var withAlphaDarkest = Color.FromArgb(alpha, darkest.R, darkest.G, darkest.B);
+        var withAlphaSecondDark = Color.FromArgb(alpha, secondDark.R, secondDark.G, secondDark.B);
+        var withAlphaSecondLight = Color.FromArgb(alpha, secondLight.R, secondLight.G, secondLight.B);
         var resources = Application.Current.Resources;
-        resources["ButtonBackground"] = new SolidColorBrush(secondDark);
-        resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(Blend(secondDark, Colors.Black, 0.12));
-        resources["ButtonBackgroundPressed"] = new SolidColorBrush(Blend(secondDark, Colors.Black, 0.22));
+        resources["ButtonBackground"] = new SolidColorBrush(withAlphaSecondDark);
+        resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(Color.FromArgb(alpha, Blend(secondDark, Colors.Black, 0.12).R, Blend(secondDark, Colors.Black, 0.12).G, Blend(secondDark, Colors.Black, 0.12).B));
+        resources["ButtonBackgroundPressed"] = new SolidColorBrush(Color.FromArgb(alpha, Blend(secondDark, Colors.Black, 0.22).R, Blend(secondDark, Colors.Black, 0.22).G, Blend(secondDark, Colors.Black, 0.22).B));
         resources["ButtonForeground"] = new SolidColorBrush(Colors.White);
-        resources["AccentFillColorDefaultBrush"] = new SolidColorBrush(darkest);
-        resources["AccentFillColorSecondaryBrush"] = new SolidColorBrush(darkest);
+        resources["AccentFillColorDefaultBrush"] = new SolidColorBrush(withAlphaDarkest);
+        resources["AccentFillColorSecondaryBrush"] = new SolidColorBrush(withAlphaDarkest);
         resources["TextOnAccentFillColorPrimaryBrush"] = new SolidColorBrush(Colors.White);
-        resources["ControlFillColorDefaultBrush"] = new SolidColorBrush(secondLight);
-        resources["ControlFillColorSecondaryBrush"] = new SolidColorBrush(secondLight);
-        resources["ControlFillColorTertiaryBrush"] = new SolidColorBrush(secondLight);
-        resources["CardStrokeColorDefaultBrush"] = new SolidColorBrush(Blend(secondDark, Colors.White, 0.4));
+        resources["ControlFillColorDefaultBrush"] = new SolidColorBrush(withAlphaSecondLight);
+        resources["ControlFillColorSecondaryBrush"] = new SolidColorBrush(withAlphaSecondLight);
+        resources["ControlFillColorTertiaryBrush"] = new SolidColorBrush(withAlphaSecondLight);
+        var stroke = Blend(secondDark, Colors.White, 0.4);
+        resources["CardStrokeColorDefaultBrush"] = new SolidColorBrush(Color.FromArgb(alpha, stroke.R, stroke.G, stroke.B));
     }
 
     private static void RemoveAppBrushOverrides()
@@ -247,7 +451,12 @@ public sealed partial class ShellPage : Page
         for (var i = 0; i < webItems.Count; i++)
         {
             var webItem = webItems[i];
-            var menuItem = CreateDynamicMenuItem(webItem.Name, typeof(WebViewViewModel).FullName!, i, "\uE774");
+            var menuItem = CreateDynamicMenuItem(
+                webItem.Name,
+                typeof(WebViewViewModel).FullName!,
+                i,
+                "\uE774",
+                CreateWebIconForUrl(webItem.Url));
             NavigationHelper.SetNavigateTo(menuItem, typeof(WebViewViewModel).FullName!);
             NavigationHelper.SetNavigationParameter(menuItem, i);
             NavigationViewControl.MenuItems.Insert(insertIndex + i, menuItem);
@@ -256,6 +465,7 @@ public sealed partial class ShellPage : Page
 
         UpdateCloseButtonsVisibility();
         NavigateToMainPageIfNoPageItems();
+        ApplyNavigationContrastBrush();
     }
 
     private async void NavigationViewControl_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
@@ -473,10 +683,84 @@ public sealed partial class ShellPage : Page
         NavigationViewControl.MenuItems.Insert(insertIndex, item);
         _dynamicPageItems.Add(item);
         UpdateCloseButtonsVisibility();
+        ApplyNavigationContrastBrush();
         return item;
     }
 
-    private NavigationViewItem CreateDynamicMenuItem(string title, string pageKey, object? parameter, string glyph)
+    private void ApplyNavigationContrastBrush()
+    {
+        var basis = GetCurrentVisualBasisColor();
+        var foregroundColor = GetReadableForegroundColor(basis);
+        var brush = new SolidColorBrush(foregroundColor);
+        NavigationViewControl.Foreground = brush;
+        AppTitleBarText.Foreground = brush;
+        AddWebNavItem.Foreground = brush;
+        if (AddWebNavItem.Icon is IconElement addIcon)
+        {
+            addIcon.Foreground = brush;
+        }
+
+        foreach (var item in _dynamicWebItems.Concat(_dynamicPageItems))
+        {
+            item.Foreground = brush;
+            if (item.Icon is IconElement icon)
+            {
+                icon.Foreground = brush;
+            }
+        }
+
+        PinToggleButton.Foreground = brush;
+
+        // Increase contrast for built-in NavigationView glyphs (back/settings/pane buttons).
+        NavigationViewControl.Resources["NavigationViewItemForeground"] = brush;
+        NavigationViewControl.Resources["NavigationViewItemForegroundPointerOver"] = brush;
+        NavigationViewControl.Resources["NavigationViewItemForegroundPressed"] = brush;
+        NavigationViewControl.Resources["NavigationViewItemForegroundSelected"] = brush;
+        NavigationViewControl.Resources["NavigationViewButtonForeground"] = brush;
+        NavigationViewControl.Resources["NavigationViewButtonForegroundPointerOver"] = brush;
+        NavigationViewControl.Resources["NavigationViewButtonForegroundPressed"] = brush;
+        NavigationViewControl.Resources["NavigationViewBackButtonForeground"] = brush;
+        NavigationViewControl.Resources["NavigationViewBackButtonForegroundPointerOver"] = brush;
+        NavigationViewControl.Resources["NavigationViewBackButtonForegroundPressed"] = brush;
+    }
+
+    private Color GetCurrentVisualBasisColor()
+    {
+        if (_customAccentColor.HasValue)
+        {
+            return Color.FromArgb((byte)Math.Round(255 * _themeOpacity), _customAccentColor.Value.R, _customAccentColor.Value.G, _customAccentColor.Value.B);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_backgroundImagePath))
+        {
+            // For complex image backgrounds, prefer a high-contrast white foreground baseline.
+            return Color.FromArgb(0xFF, 0x20, 0x20, 0x20);
+        }
+
+        if (RootLayout.Background is SolidColorBrush rootBrush)
+        {
+            return rootBrush.Color;
+        }
+
+        if (AppTitleBar.Background is SolidColorBrush titleBrush)
+        {
+            return titleBrush.Color;
+        }
+
+        return Color.FromArgb(0xFF, 0x20, 0x20, 0x20);
+    }
+
+    private static Color GetReadableForegroundColor(Color background)
+    {
+        var luminance =
+            (0.2126 * background.R / 255.0) +
+            (0.7152 * background.G / 255.0) +
+            (0.0722 * background.B / 255.0);
+
+        return luminance < 0.5 ? Colors.White : Colors.Black;
+    }
+
+    private NavigationViewItem CreateDynamicMenuItem(string title, string pageKey, object? parameter, string glyph, IconElement? icon = null)
     {
         var closeButton = new Button
         {
@@ -524,7 +808,7 @@ public sealed partial class ShellPage : Page
         {
             Content = contentGrid,
             Tag = closeButton,
-            Icon = new FontIcon
+            Icon = icon ?? new FontIcon
             {
                 FontFamily = (FontFamily)Application.Current.Resources["SymbolThemeFontFamily"],
                 Glyph = glyph
@@ -536,6 +820,37 @@ public sealed partial class ShellPage : Page
         NavigationHelper.SetNavigationParameter(item, parameter);
         return item;
     }
+
+    private static IconElement CreateWebIconForUrl(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var targetUri) || string.IsNullOrWhiteSpace(targetUri.Host))
+        {
+            return CreateFallbackWebIcon();
+        }
+
+        try
+        {
+            var origin = Uri.EscapeDataString($"{targetUri.Scheme}://{targetUri.Host}");
+            var faviconUri = new Uri($"https://www.google.com/s2/favicons?sz=64&domain_url={origin}");
+            return new ImageIcon
+            {
+                Source = new BitmapImage(faviconUri),
+                Width = 16,
+                Height = 16
+            };
+        }
+        catch
+        {
+            return CreateFallbackWebIcon();
+        }
+    }
+
+    private static IconElement CreateFallbackWebIcon() =>
+        new FontIcon
+        {
+            FontFamily = (FontFamily)Application.Current.Resources["SymbolThemeFontFamily"],
+            Glyph = "\uE774"
+        };
 
     private async Task RemoveDynamicItemAsync(NavigationViewItem item)
     {
