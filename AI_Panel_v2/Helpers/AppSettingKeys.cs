@@ -27,4 +27,28 @@ public static class AppSettingKeys
     public const string ExtensionPopupUrls = "ExtensionPopupUrls";
 
     public const string ExtensionIconUrls = "ExtensionIconUrls";
+
+    public const string BackgroundImagePath = "BackgroundImagePath";
+
+    public const string BackgroundImageOpacity = "BackgroundImageOpacity";
+
+    public const string ThemeColorOpacity = "ThemeColorOpacity";
+
+    public const string WebLayerOpacity = "WebLayerOpacity";
+
+    public const string BackgroundImageBlur = "BackgroundImageBlur";
+
+    public const string ThemeColorBlur = "ThemeColorBlur";
+
+    public const string SettingsCardBlur = "SettingsCardBlur";
+
+    public const string WebLayerBlur = "WebLayerBlur";
+
+    public const string ProgramFontFamily = "ProgramFontFamily";
+
+    public const string ProgramFontSize = "ProgramFontSize";
+
+    public const string ProgramFontBold = "ProgramFontBold";
+
+    public const string ProgramFontItalic = "ProgramFontItalic";
 }

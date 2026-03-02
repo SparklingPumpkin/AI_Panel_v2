@@ -4,7 +4,6 @@ using AI_Panel_v2.Models;
 using AI_Panel_v2.ViewModels;
 
 using Microsoft.UI;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -287,18 +286,14 @@ public sealed partial class ShellPage : Page
     public void SetChromeHiddenForWebCard(bool hide)
     {
         _isChromeHiddenByWebCard = hide;
-        AppTitleBar.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
-        AppTitleBar.Height = hide ? 0 : 32;
-        AppTitleBar.IsHitTestVisible = !hide;
+        // Keep top bar visible in card mode; only collapse page chrome elements.
+        AppTitleBar.Visibility = Visibility.Visible;
+        AppTitleBar.Height = 32;
+        AppTitleBar.IsHitTestVisible = true;
         NavigationViewControl.IsPaneVisible = !hide;
-        NavigationViewControl.IsTitleBarAutoPaddingEnabled = !hide;
+        NavigationViewControl.IsTitleBarAutoPaddingEnabled = true;
         NavigationViewControl.IsBackButtonVisible = hide ? NavigationViewBackButtonVisible.Collapsed : NavigationViewBackButtonVisible.Visible;
         NavigationViewControl.IsSettingsVisible = !hide;
-
-        if (App.MainWindow is MainWindow mainWindow)
-        {
-            mainWindow.PresenterKind = hide ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped;
-        }
     }
 
     private bool ApplyBackgroundImageOverlayIfAvailable()

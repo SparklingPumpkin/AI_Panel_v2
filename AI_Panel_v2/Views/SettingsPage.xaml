@@ -12,12 +12,30 @@
     KeyDown="Page_KeyDown">
     <Page.Resources>
         <helpers:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+        <x:Double x:Key="Level1TitleFontSize">20</x:Double>
+        <x:Double x:Key="Level2TitleFontSize">15</x:Double>
+        <x:Double x:Key="ThemeModeOptionFontSize">15</x:Double>
         <Style x:Key="SectionCardStyle" TargetType="Border">
             <Setter Property="Padding" Value="14" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
             <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        </Style>
+        <Style x:Key="SecondarySectionCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="Level1TitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{ThemeResource Level1TitleFontSize}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="Level2TitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{ThemeResource Level2TitleFontSize}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </Page.Resources>
     <ScrollViewer
@@ -45,41 +63,55 @@
                         <TranslateTransform />
                     </Border.RenderTransform>
                     <StackPanel>
-                        <TextBlock x:Uid="Settings_Personalization" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Personalization" Style="{StaticResource Level1TitleStyle}" x:Name="PersonalizationTitleTextBlock" />
                         <StackPanel Margin="{StaticResource SmallTopBottomMargin}">
-                            <TextBlock x:Uid="Settings_Theme" />
+                            <TextBlock Text="Theme" Style="{StaticResource Level2TitleStyle}" x:Name="ThemeTitleTextBlock" />
 
-                            <Border Margin="{StaticResource XSmallTopMargin}" Style="{StaticResource SectionCardStyle}" Padding="10">
+                            <Border Margin="{StaticResource XSmallTopMargin}" Style="{StaticResource SecondarySectionCardStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <RadioButton
                                         x:Name="ThemeLightRadioButton"
                                         x:Uid="Settings_Theme_Light"
-                                        FontSize="15"
+                                        FontSize="{ThemeResource ThemeModeOptionFontSize}"
                                         Checked="ThemeRadioButton_Checked"
                                         GroupName="AppTheme" />
                                     <RadioButton
                                         x:Name="ThemeDarkRadioButton"
                                         x:Uid="Settings_Theme_Dark"
-                                        FontSize="15"
+                                        FontSize="{ThemeResource ThemeModeOptionFontSize}"
                                         Checked="ThemeRadioButton_Checked"
                                         GroupName="AppTheme" />
                                     <RadioButton
                                         x:Name="ThemeDefaultRadioButton"
                                         x:Uid="Settings_Theme_Default"
-                                        FontSize="15"
+                                        FontSize="{ThemeResource ThemeModeOptionFontSize}"
                                         Checked="ThemeRadioButton_Checked"
                                         GroupName="AppTheme" />
                                     <RadioButton
                                         x:Name="ThemeCustomRadioButton"
                                         Content="Custom"
-                                        FontSize="15"
+                                        FontSize="{ThemeResource ThemeModeOptionFontSize}"
                                         Checked="ThemeRadioButton_Checked"
                                         GroupName="AppTheme" />
                                 </StackPanel>
                             </Border>
 
-                            <TextBlock Margin="0,14,0,0" Text="Theme Color (Applied to Theme)" />
-                            <StackPanel Margin="{StaticResource XSmallTopMargin}" Spacing="8">
+                            <StackPanel Margin="0,14,0,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="Theme Color (Applied to Theme)" VerticalAlignment="Center" />
+                                <Button
+                                    x:Name="ThemeColorExpandButton"
+                                    Width="30"
+                                    Height="30"
+                                    Padding="0"
+                                    Click="ThemeColorExpandButton_Click"
+                                    ToolTipService.ToolTip="Expand/Collapse Theme Color Panel">
+                                    <FontIcon x:Name="ThemeColorExpandIcon" FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE70D;" />
+                                </Button>
+                            </StackPanel>
+                            <StackPanel x:Name="ThemeColorPanel"
+                                        Margin="{StaticResource XSmallTopMargin}"
+                                        Spacing="8"
+                                        Visibility="Collapsed">
                                 <Grid ColumnSpacing="14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -99,7 +131,7 @@
                                         ShowAccentColors="True"
                                         ColorSpectrumShape="Box" />
                                     <StackPanel Grid.Column="1" Spacing="8">
-                                        <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                        <Border Style="{StaticResource SecondarySectionCardStyle}">
                                             <StackPanel Spacing="6">
                                                 <TextBlock Text="Opacity" FontWeight="SemiBold" />
                                                 <TextBlock Text="IsAlphaEnabled" />
@@ -108,7 +140,7 @@
                                                 <ToggleSwitch x:Name="AlphaSliderSwitch" IsOn="True" Toggled="AlphaSliderSwitch_Toggled" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                        <Border Style="{StaticResource SecondarySectionCardStyle}">
                                             <StackPanel Spacing="6">
                                                 <TextBlock Text="Input / Slider" FontWeight="SemiBold" />
                                                 <TextBlock Text="IsColorSliderVisible" />
@@ -117,7 +149,7 @@
                                                 <ToggleSwitch x:Name="ColorChannelSwitch" IsOn="True" Toggled="ColorChannelSwitch_Toggled" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                        <Border Style="{StaticResource SecondarySectionCardStyle}">
                                             <StackPanel Spacing="6">
                                                 <TextBlock Text="Spectrum / Palette" FontWeight="SemiBold" />
                                                 <TextBlock Text="IsColorSpectrumVisible" />
@@ -136,31 +168,176 @@
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock x:Name="AccentPaletteStatusTextBlock" VerticalAlignment="Center" />
-                                <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                            </StackPanel>
+
+                            <StackPanel Margin="0,14,0,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="Program Font" Style="{StaticResource Level2TitleStyle}" VerticalAlignment="Center" x:Name="ProgramFontTitleTextBlock" />
+                            </StackPanel>
+                            <StackPanel x:Name="ProgramFontPanel"
+                                        Margin="{StaticResource XSmallTopMargin}"
+                                        Spacing="8">
+                                <TextBlock x:Name="ProgramFontStatusTextBlock" />
+                                <Border Style="{StaticResource SecondarySectionCardStyle}">
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="Settings Card Color" FontWeight="SemiBold" />
-                                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                            <toolkit:ColorPickerButton
-                                                x:Name="CardColorPickerButton"
-                                                SelectedColor="LightBlue" />
-                                            <StackPanel Width="220" Spacing="4">
-                                                <TextBlock Text="Card Opacity" />
-                                                <Slider
-                                                    x:Name="CardOpacitySlider"
-                                                    Minimum="0"
-                                                    Maximum="255"
-                                                    StepFrequency="1"
-                                                    ValueChanged="CardOpacitySlider_ValueChanged" />
+                                        <TextBlock Text="Font Style" FontWeight="SemiBold" />
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Spacing="4">
+                                                <TextBlock Text="Font Size" />
+                                                <Slider x:Name="ProgramFontSizeSlider"
+                                                        Minimum="10"
+                                                        Maximum="28"
+                                                        StepFrequency="1"
+                                                        ValueChanged="ProgramFontSizeSlider_ValueChanged" />
                                             </StackPanel>
+                                            <ToggleSwitch x:Name="ProgramFontBoldSwitch"
+                                                          Grid.Column="1"
+                                                          Header="Bold"
+                                                          Toggled="ProgramFontBoldSwitch_Toggled" />
+                                            <ToggleSwitch x:Name="ProgramFontItalicSwitch"
+                                                          Grid.Column="2"
+                                                          Header="Italic"
+                                                          Toggled="ProgramFontItalicSwitch_Toggled" />
+                                            <Button Grid.Column="3"
+                                                    Content="Restore Default"
+                                                    VerticalAlignment="Bottom"
+                                                    Click="RestoreProgramFontButton_Click" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SecondarySectionCardStyle}">
+                                    <StackPanel Spacing="8">
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <TextBlock Text="Font List" FontWeight="SemiBold" />
+                                            <Button
+                                                x:Name="ProgramFontsListExpandButton"
+                                                Width="30"
+                                                Height="30"
+                                                Padding="0"
+                                                Click="ProgramFontsListExpandButton_Click"
+                                                ToolTipService.ToolTip="Expand/Collapse Font List">
+                                                <FontIcon x:Name="ProgramFontsListExpandIcon" FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE70D;" />
+                                            </Button>
+                                        </StackPanel>
+                                        <StackPanel x:Name="ProgramFontsListPanel" Visibility="Collapsed">
+                                            <GridView x:Name="ProgramFontsGridView"
+                                                      SelectionMode="Single"
+                                                      IsItemClickEnabled="False"
+                                                      SelectionChanged="ProgramFontsGridView_SelectionChanged"
+                                                      MinHeight="160"
+                                                      MaxHeight="280">
+                                                <GridView.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" />
+                                                    </ItemsPanelTemplate>
+                                                </GridView.ItemsPanel>
+                                                <GridView.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border MinWidth="170" Margin="4" Padding="8" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                                            <StackPanel Spacing="3">
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontFamily="{Binding DisplayFontFamily}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </GridView.ItemTemplate>
+                                            </GridView>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
+
+                            <TextBlock Margin="0,14,0,0" Text="Background Image" Style="{StaticResource Level2TitleStyle}" x:Name="BackgroundImageTitleTextBlock" />
+                            <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                                <TextBox x:Name="BackgroundImagePathTextBox" Width="360" IsReadOnly="True" PlaceholderText="Select a local image for app background" />
+                                <Button Content="Choose Image" Click="ChooseBackgroundImageButton_Click" />
+                                <Button Content="Clear" Click="ClearBackgroundImageButton_Click" />
+                                <TextBlock x:Name="BackgroundImageStatusTextBlock" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <Border Margin="0,14,0,0" Style="{StaticResource SecondarySectionCardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Opacity Controls" FontWeight="SemiBold" />
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <TextBlock Text="Background Image Opacity" />
+                                            <Slider
+                                                x:Name="BackgroundImageOpacitySlider"
+                                                Minimum="0"
+                                                Maximum="1"
+                                                StepFrequency="0.01"
+                                                ValueChanged="BackgroundImageOpacitySlider_ValueChanged" />
+                                            <TextBlock Text="Background Image Blur" />
+                                            <Slider
+                                                x:Name="BackgroundImageBlurSlider"
+                                                Minimum="0"
+                                                Maximum="30"
+                                                StepFrequency="1"
+                                                ValueChanged="BackgroundImageBlurSlider_ValueChanged" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Text="Theme Color Opacity" />
+                                            <Slider
+                                                x:Name="ThemeOpacitySlider"
+                                                Minimum="0"
+                                                Maximum="1"
+                                                StepFrequency="0.01"
+                                                ValueChanged="ThemeOpacitySlider_ValueChanged" />
+                                            <TextBlock Text="Theme Color Blur" />
+                                            <Slider
+                                                x:Name="ThemeBlurSlider"
+                                                Minimum="0"
+                                                Maximum="30"
+                                                StepFrequency="1"
+                                                ValueChanged="ThemeBlurSlider_ValueChanged" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="4">
+                                            <TextBlock Text="Settings Card Opacity" />
+                                            <Slider
+                                                x:Name="CardOpacitySlider"
+                                                Minimum="0"
+                                                Maximum="255"
+                                                StepFrequency="1"
+                                                ValueChanged="CardOpacitySlider_ValueChanged" />
+                                            <TextBlock Text="Settings Card Blur" />
+                                            <Slider
+                                                x:Name="CardBlurSlider"
+                                                Minimum="0"
+                                                Maximum="30"
+                                                StepFrequency="1"
+                                                ValueChanged="CardBlurSlider_ValueChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,14,0,0" Style="{StaticResource SecondarySectionCardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Settings Card Color" FontWeight="SemiBold" />
+                                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                        <toolkit:ColorPickerButton
+                                            x:Name="CardColorPickerButton"
+                                            SelectedColor="LightBlue" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="HotkeyCard"
+                <Border x:Name="GlobalSettingsCard"
                         Style="{StaticResource SectionCardStyle}"
                         PointerPressed="DraggableCard_PointerPressed"
                         PointerMoved="DraggableCard_PointerMoved"
@@ -170,12 +347,46 @@
                         <TranslateTransform />
                     </Border.RenderTransform>
                     <StackPanel>
-                        <TextBlock Margin="0,0,0,8" Text="Global Hotkey" />
+                        <TextBlock Text="Global Settings" Style="{StaticResource Level1TitleStyle}" x:Name="GlobalSettingsTitleTextBlock" />
+
+                        <TextBlock Margin="0,8,0,0" Text="Global Hotkey" Style="{StaticResource Level2TitleStyle}" x:Name="GlobalHotkeyTitleTextBlock" />
                         <TextBlock x:Name="HotKeyTextBlock" />
                         <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
                             <Button x:Name="RecordHotKeyButton" Content="Record Hotkey" Click="RecordHotKeyButton_Click" />
                             <Button Content="Save Hotkey" Click="SaveHotKeyButton_Click" />
                             <TextBlock x:Name="HotKeyStatusTextBlock" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Border Margin="0,14,0,0" Style="{StaticResource SecondarySectionCardStyle}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock Text="Page Items" Style="{StaticResource Level2TitleStyle}" VerticalAlignment="Center" x:Name="PageItemsTitleTextBlock" />
+                                    <Button
+                                        x:Name="PageItemsExpandButton"
+                                        Width="30"
+                                        Height="30"
+                                        Padding="0"
+                                        Click="PageItemsExpandButton_Click"
+                                        ToolTipService.ToolTip="Expand/Collapse Page Items">
+                                        <FontIcon x:Name="PageItemsExpandIcon" FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE70D;" />
+                                    </Button>
+                                </StackPanel>
+                                <StackPanel x:Name="PageItemsPanel" Spacing="3" Visibility="Collapsed">
+                                    <StackPanel x:Name="WebItemsEditorPanel" Spacing="0" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Add Page Item" Click="AddWebItemButton_Click" />
+                                        <Button Content="Save Page Items" Click="SaveWebItemsButton_Click" />
+                                        <TextBlock x:Name="WebItemsStatusTextBlock" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Margin="0,14,0,0" Text="Download Path" Style="{StaticResource Level2TitleStyle}" x:Name="DownloadPathTitleTextBlock" />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                            <TextBox x:Name="DownloadPathTextBox" Width="360" PlaceholderText="D:\" />
+                            <Button Content="Save Download Path" Click="SaveDownloadPathButton_Click" />
+                            <TextBlock x:Name="DownloadPathStatusTextBlock" VerticalAlignment="Center" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -192,7 +403,7 @@
                         <TranslateTransform />
                     </Border.RenderTransform>
                     <StackPanel>
-                        <TextBlock x:Uid="Settings_About" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="About" Style="{StaticResource Level1TitleStyle}" x:Name="AboutTitleTextBlock" />
                         <StackPanel Margin="{StaticResource XSmallTopMargin}">
                             <TextBlock Text="{x:Bind ViewModel.VersionDescription, Mode=OneWay}" Style="{ThemeResource BodyTextBlockStyle}" />
 
@@ -205,7 +416,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="PageSettingsCard"
+                <Border x:Name="WebSettingsCard"
                         Style="{StaticResource SectionCardStyle}"
                         PointerPressed="DraggableCard_PointerPressed"
                         PointerMoved="DraggableCard_PointerMoved"
@@ -215,43 +426,74 @@
                         <TranslateTransform />
                     </Border.RenderTransform>
                     <StackPanel>
-                        <TextBlock Text="Page Settings" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Web Settings" Style="{StaticResource Level1TitleStyle}" x:Name="WebSettingsTitleTextBlock" />
 
-                        <TextBlock Margin="0,14,0,0" Text="Page Items" />
-                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Spacing="3">
-                            <StackPanel x:Name="WebItemsEditorPanel" Spacing="0" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Add Page Item" Click="AddWebItemButton_Click" />
-                                <Button Content="Save Page Items" Click="SaveWebItemsButton_Click" />
-                                <TextBlock x:Name="WebItemsStatusTextBlock" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <TextBlock Margin="0,14,0,0" Text="Download Path" />
-                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
-                            <TextBox x:Name="DownloadPathTextBox" Width="360" PlaceholderText="D:\" />
-                            <Button Content="Save Download Path" Click="SaveDownloadPathButton_Click" />
-                            <TextBlock x:Name="DownloadPathStatusTextBlock" VerticalAlignment="Center" />
-                        </StackPanel>
-
-                        <TextBlock Margin="0,14,0,0" Text="Browser Extensions (WebView2)" />
-                        <TextBlock Margin="0,4,0,0" TextWrapping="WrapWholeWords" Text="Edge Add-ons can be browsed from the link below. Due WebView2 restrictions, install is from unpacked extension folder." />
-                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
-                            <Button Content="Open Edge Add-ons" Click="OpenEdgeAddonsButton_Click" />
-                            <Button Content="Open App Profile Dev Settings" Click="OpenExtensionDevModeButton_Click" />
-                            <Button Content="Refresh Extensions" Click="RefreshExtensionsButton_Click" />
-                        </StackPanel>
-                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
-                            <TextBox x:Name="ExtensionFolderPathTextBox" Width="360" PlaceholderText="Unpacked extension folder path" />
-                            <Button Content="Install Extension" Click="InstallExtensionButton_Click" />
-                            <TextBlock x:Name="ExtensionStatusTextBlock" VerticalAlignment="Center" />
-                        </StackPanel>
-                        <Border Margin="0,10,0,0" Style="{StaticResource SectionCardStyle}" Padding="10">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="Installed Extensions" FontWeight="SemiBold" />
-                                <StackPanel x:Name="ExtensionsRowsPanel" Spacing="6" />
+                        <Border Margin="0,14,0,0" Style="{StaticResource SecondarySectionCardStyle}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Web Opacity" Style="{StaticResource Level2TitleStyle}" x:Name="WebOpacityTitleTextBlock" />
+                                <TextBlock Text="Control page layer transparency to keep web content readable over injected background image." TextWrapping="WrapWholeWords" />
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Web Page Layer Opacity" />
+                                        <Slider
+                                            x:Name="WebLayerOpacitySlider"
+                                            Minimum="0"
+                                            Maximum="1"
+                                            StepFrequency="0.01"
+                                            ValueChanged="WebLayerOpacitySlider_ValueChanged" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="Web Page Layer Blur" />
+                                        <Slider
+                                            x:Name="WebLayerBlurSlider"
+                                            Minimum="0"
+                                            Maximum="30"
+                                            StepFrequency="1"
+                                            ValueChanged="WebLayerBlurSlider_ValueChanged" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Border>
+
+                        <TextBlock Margin="0,14,0,0" Text="Browser Extensions (WebView2)" Style="{StaticResource Level2TitleStyle}" x:Name="ExtensionsTitleTextBlock" />
+                        <TextBlock Margin="0,4,0,0" TextWrapping="WrapWholeWords" Text="Edge Add-ons can be browsed from the link below. Due WebView2 restrictions, install is from unpacked extension folder." />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Install Extension" VerticalAlignment="Center" />
+                            <Button
+                                x:Name="InstallExtensionExpandButton"
+                                Width="30"
+                                Height="30"
+                                Padding="0"
+                                Click="InstallExtensionExpandButton_Click"
+                                ToolTipService.ToolTip="Expand/Collapse Extension Details">
+                                <FontIcon x:Name="InstallExtensionExpandIcon" FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE70D;" />
+                            </Button>
+                        </StackPanel>
+                        <StackPanel x:Name="InstallExtensionPanel"
+                                    Margin="{StaticResource XSmallTopMargin}"
+                                    Spacing="8"
+                                    Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Open Edge Add-ons" Click="OpenEdgeAddonsButton_Click" />
+                                <Button Content="Open App Profile Dev Settings" Click="OpenExtensionDevModeButton_Click" />
+                                <Button Content="Refresh Extensions" Click="RefreshExtensionsButton_Click" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox x:Name="ExtensionFolderPathTextBox" Width="360" PlaceholderText="Unpacked extension folder path" />
+                                <Button Content="Install Extension" Click="InstallExtensionButton_Click" />
+                                <TextBlock x:Name="ExtensionStatusTextBlock" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Border Style="{StaticResource SecondarySectionCardStyle}">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Installed Extensions" FontWeight="SemiBold" />
+                                    <StackPanel x:Name="ExtensionsRowsPanel" Spacing="6" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </StackPanel>

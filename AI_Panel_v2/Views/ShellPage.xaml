@@ -8,6 +8,11 @@
     Loaded="OnLoaded">
 
     <Grid x:Name="RootLayout" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Border x:Name="BackgroundBlurOverlay"
+                Canvas.ZIndex="-1"
+                Background="Transparent"
+                IsHitTestVisible="False"
+                Visibility="Collapsed" />
         <Grid x:Name="AppTitleBar"
               Canvas.ZIndex="1"
               Height="32"

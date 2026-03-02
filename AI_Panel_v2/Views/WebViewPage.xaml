@@ -10,6 +10,24 @@
 
     <Grid x:Name="ContentArea" PointerMoved="ContentArea_PointerMoved" SizeChanged="ContentArea_SizeChanged">
         <WebView2 x:Name="WebView" />
+        <Border HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Height="20"
+                Background="Transparent"
+                PointerEntered="EdgeRevealArea_PointerEntered"
+                PointerExited="EdgeRevealArea_PointerExited" />
+        <Border HorizontalAlignment="Left"
+                VerticalAlignment="Stretch"
+                Width="20"
+                Background="Transparent"
+                PointerEntered="EdgeRevealArea_PointerEntered"
+                PointerExited="EdgeRevealArea_PointerExited" />
+        <Border HorizontalAlignment="Right"
+                VerticalAlignment="Stretch"
+                Width="20"
+                Background="Transparent"
+                PointerEntered="EdgeRevealArea_PointerEntered"
+                PointerExited="EdgeRevealArea_PointerExited" />
 
         <Border
             x:Name="WebToolsHost"
@@ -19,7 +37,9 @@
             CornerRadius="12"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1">
+            BorderThickness="1"
+            PointerEntered="WebToolsHost_PointerEntered"
+            PointerExited="WebToolsHost_PointerExited">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="WebToolsTransform" />
             </Border.RenderTransform>
@@ -69,6 +89,15 @@
                         Padding="0"
                         Click="ExtensionsToggleButton_Click">
                         <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xEA86;" />
+                    </Button>
+                    <Button
+                        x:Name="WebCardModeButton"
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Click="WebCardModeButton_Click"
+                        ToolTipService.ToolTip="Hide/Show app chrome">
+                        <FontIcon x:Name="WebCardModeIcon" FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE740;" />
                     </Button>
                 </StackPanel>
 

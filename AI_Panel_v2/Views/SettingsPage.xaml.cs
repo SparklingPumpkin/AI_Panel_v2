@@ -10,13 +10,16 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.Storage.Pickers;
 using Windows.Foundation;
 using System.IO;
 using System.Diagnostics;
+using Microsoft.Win32;
 
 using Windows.System;
 using Windows.UI;
 using Windows.UI.Core;
+using WinRT.Interop;
 
 using ColorSpectrumShape = Microsoft.UI.Xaml.Controls.ColorSpectrumShape;
 
@@ -31,6 +34,7 @@ public sealed partial class SettingsPage : Page
     private const string ThemeModeDark = "Dark";
     private const string ThemeModeDefault = "Default";
     private const string ThemeModeCustom = "Custom";
+    private const double DefaultOpacity = 1.0;
     private const double DragStartThreshold = 8;
     private readonly ILocalSettingsService _localSettingsService;
     private readonly IThemeSelectorService _themeSelectorService;
@@ -51,6 +55,12 @@ public sealed partial class SettingsPage : Page
     private bool _isCustomThemeSelected;
     private Brush? _customMiddleBrush;
     private Brush? _customSecondDarkBrush;
+    private Color? _lastAutoReadableTextColor;
+    private double _settingsCardBlur;
+    private readonly List<FontDisplayItem> _programFonts = new();
+    private bool _isUpdatingProgramFontSelection;
+    private bool _isUpdatingProgramFontStyleControls;
+    private bool _hasLoadedSettingsOnce;
 
     public SettingsViewModel ViewModel
     {
@@ -65,83 +75,137 @@ public sealed partial class SettingsPage : Page
         _navigationService = App.GetService<INavigationService>();
         _webViewService = App.GetService<IWebViewService>();
         InitializeComponent();
+        NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
         CardColorPickerButton.RegisterPropertyChangedCallback(
             CommunityToolkit.WinUI.Controls.ColorPickerButton.SelectedColorProperty,
             (_, _) => OnCardColorPickerButtonColorChanged());
         Loaded += SettingsPage_Loaded;
+        Unloaded += SettingsPage_Unloaded;
     }
 
     private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
-        await LoadSettingsAsync();
-        await RestoreCardLayoutAsync();
+        if (_hasLoadedSettingsOnce)
+        {
+            return;
+        }
+
+        try
+        {
+            await LoadSettingsAsync();
+            await RestoreCardLayoutAsync();
+            _hasLoadedSettingsOnce = true;
+        }
+        catch (Exception ex)
+        {
+            WebItemsStatusTextBlock.Text = $"Load failed: {ex.Message}";
+        }
+    }
+
+    private async void SettingsPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        await SaveProgramFontSettingsSnapshotAsync();
     }
 
     private async Task LoadSettingsAsync()
     {
         _isInitializingSettings = true;
-        _pendingHotKey = await _localSettingsService.ReadSettingAsync<HotKeySetting>(AppSettingKeys.GlobalHotKey) ?? new HotKeySetting();
-        HotKeyTextBlock.Text = $"Current: {ToDisplayText(_pendingHotKey)}";
-
-        _webItems = await LoadWebItemsAsync();
-        RenderWebItemEditors();
-
-        var downloadPath = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.WebViewDownloadPath);
-        if (string.IsNullOrWhiteSpace(downloadPath))
+        try
         {
-            downloadPath = DefaultDownloadPath;
-            await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebViewDownloadPath, downloadPath);
-        }
+            _pendingHotKey = await _localSettingsService.ReadSettingAsync<HotKeySetting>(AppSettingKeys.GlobalHotKey) ?? new HotKeySetting();
+            HotKeyTextBlock.Text = $"Current: {ToDisplayText(_pendingHotKey)}";
 
-        DownloadPathTextBox.Text = downloadPath;
-        await RefreshExtensionsAsync();
+            _webItems = await LoadWebItemsAsync();
+            RenderWebItemEditors();
 
-        SpectrumShapeComboBox.SelectedItem = "Box";
-
-        var savedColorText = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.AccentColor);
-        if (AccentPaletteHelper.TryParseHex(savedColorText, out var savedColor))
-        {
-            AccentColorPicker.Color = savedColor;
-        }
-        else
-        {
-            var paletteName = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.AccentPalette);
-            var palette = AccentPaletteHelper.GetByName(paletteName);
-            AccentColorPicker.Color = palette.Accent;
-        }
-
-        var themeMode = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.ThemeMode);
-        if (string.Equals(themeMode, ThemeModeCustom, StringComparison.OrdinalIgnoreCase))
-        {
-            ThemeCustomRadioButton.IsChecked = true;
-            _isCustomThemeSelected = true;
-            ApplyCustomAccentVisual(AccentColorPicker.Color);
-            AccentPaletteStatusTextBlock.Text = "Custom theme active";
-        }
-        else
-        {
-            _isCustomThemeSelected = false;
-            ClearCustomChromeFromShell();
-            ClearCustomControlBrushes();
-            var currentTheme = _themeSelectorService.Theme;
-            if (string.Equals(themeMode, ThemeModeLight, StringComparison.OrdinalIgnoreCase) || currentTheme == ElementTheme.Light)
+            var downloadPath = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.WebViewDownloadPath);
+            if (string.IsNullOrWhiteSpace(downloadPath))
             {
-                ThemeLightRadioButton.IsChecked = true;
+                downloadPath = DefaultDownloadPath;
+                await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebViewDownloadPath, downloadPath);
             }
-            else if (string.Equals(themeMode, ThemeModeDark, StringComparison.OrdinalIgnoreCase) || currentTheme == ElementTheme.Dark)
+
+            DownloadPathTextBox.Text = downloadPath;
+
+            var backgroundImagePath = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.BackgroundImagePath) ?? string.Empty;
+            BackgroundImagePathTextBox.Text = backgroundImagePath;
+            BackgroundImageStatusTextBlock.Text = string.IsNullOrWhiteSpace(backgroundImagePath) ? "Not set" : "Loaded";
+
+            var savedBackgroundOpacity = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.BackgroundImageOpacity);
+            BackgroundImageOpacitySlider.Value = ClampOpacity(savedBackgroundOpacity ?? DefaultOpacity);
+            var savedBackgroundBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.BackgroundImageBlur);
+            BackgroundImageBlurSlider.Value = ClampBlur(savedBackgroundBlur ?? 0);
+
+            var savedThemeOpacity = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.ThemeColorOpacity);
+            ThemeOpacitySlider.Value = ClampOpacity(savedThemeOpacity ?? DefaultOpacity);
+            var savedThemeBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.ThemeColorBlur);
+            ThemeBlurSlider.Value = ClampBlur(savedThemeBlur ?? 0);
+            var savedWebLayerOpacity = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.WebLayerOpacity);
+            WebLayerOpacitySlider.Value = ClampOpacity(savedWebLayerOpacity ?? 0.5);
+            var savedWebLayerBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.WebLayerBlur);
+            WebLayerBlurSlider.Value = ClampBlur(savedWebLayerBlur ?? 0);
+
+            LoadProgramFontOptions();
+            await LoadProgramFontSelectionAsync();
+            await LoadProgramFontStyleAsync();
+
+            // Avoid heavy WebView extension enumeration during page activation to reduce flicker
+            // and prevent instability when switching pages rapidly.
+            if (InstallExtensionPanel.Visibility == Visibility.Visible)
             {
-                ThemeDarkRadioButton.IsChecked = true;
+                await RefreshExtensionsAsync();
+            }
+
+            SpectrumShapeComboBox.SelectedItem = "Box";
+
+            var savedColorText = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.AccentColor);
+            if (AccentPaletteHelper.TryParseHex(savedColorText, out var savedColor))
+            {
+                AccentColorPicker.Color = savedColor;
             }
             else
             {
-                ThemeDefaultRadioButton.IsChecked = true;
+                var paletteName = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.AccentPalette);
+                var palette = AccentPaletteHelper.GetByName(paletteName);
+                AccentColorPicker.Color = palette.Accent;
             }
 
-            AccentPaletteStatusTextBlock.Text = "Switch to Custom to apply color changes";
-        }
+            var themeMode = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.ThemeMode);
+            if (string.Equals(themeMode, ThemeModeCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                ThemeCustomRadioButton.IsChecked = true;
+                _isCustomThemeSelected = true;
+                ApplyCustomAccentVisual(AccentColorPicker.Color);
+                AccentPaletteStatusTextBlock.Text = "Custom theme active";
+            }
+            else
+            {
+                _isCustomThemeSelected = false;
+                ClearCustomChromeFromShell();
+                ClearCustomControlBrushes();
+                var currentTheme = _themeSelectorService.Theme;
+                if (string.Equals(themeMode, ThemeModeLight, StringComparison.OrdinalIgnoreCase) || currentTheme == ElementTheme.Light)
+                {
+                    ThemeLightRadioButton.IsChecked = true;
+                }
+                else if (string.Equals(themeMode, ThemeModeDark, StringComparison.OrdinalIgnoreCase) || currentTheme == ElementTheme.Dark)
+                {
+                    ThemeDarkRadioButton.IsChecked = true;
+                }
+                else
+                {
+                    ThemeDefaultRadioButton.IsChecked = true;
+                }
 
-        await LoadCardColorAsync();
-        _isInitializingSettings = false;
+                AccentPaletteStatusTextBlock.Text = "Switch to Custom to apply color changes";
+            }
+
+            await LoadCardColorAsync();
+        }
+        finally
+        {
+            _isInitializingSettings = false;
+        }
     }
 
     private async Task<List<WebItemSetting>> LoadWebItemsAsync()
@@ -338,6 +402,42 @@ public sealed partial class SettingsPage : Page
 
         await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebViewDownloadPath, downloadPath);
         DownloadPathStatusTextBlock.Text = "Saved";
+    }
+
+    private async void ChooseBackgroundImageButton_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        picker.FileTypeFilter.Add(".png");
+        picker.FileTypeFilter.Add(".jpg");
+        picker.FileTypeFilter.Add(".jpeg");
+        picker.FileTypeFilter.Add(".bmp");
+        picker.FileTypeFilter.Add(".webp");
+
+        var hwnd = WindowNative.GetWindowHandle(App.MainWindow);
+        InitializeWithWindow.Initialize(picker, hwnd);
+
+        var file = await picker.PickSingleFileAsync();
+        if (file == null)
+        {
+            return;
+        }
+
+        BackgroundImagePathTextBox.Text = file.Path;
+        await SaveBackgroundImagePathAsync(file.Path);
+    }
+
+    private async void ClearBackgroundImageButton_Click(object sender, RoutedEventArgs e)
+    {
+        BackgroundImagePathTextBox.Text = string.Empty;
+        await SaveBackgroundImagePathAsync(string.Empty);
+    }
+
+    private async Task SaveBackgroundImagePathAsync(string path)
+    {
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.BackgroundImagePath, path);
+        ApplyBackgroundImageToShell(path, BackgroundImageOpacitySlider.Value, ClampBlur(BackgroundImageBlurSlider.Value));
+
+        BackgroundImageStatusTextBlock.Text = string.IsNullOrWhiteSpace(path) ? "Cleared" : "Saved";
     }
 
     private async void OpenEdgeAddonsButton_Click(object sender, RoutedEventArgs e)
@@ -700,10 +800,13 @@ public sealed partial class SettingsPage : Page
     {
         var darkest = Blend(color, Colors.Black, 0.55);
         var secondDark = Blend(color, Colors.Black, 0.35);
-        var middle = new SolidColorBrush(Color.FromArgb(0xFF, color.R, color.G, color.B));
+        var themeOpacity = ClampOpacity(ThemeOpacitySlider.Value);
+        var themeBlur = ClampBlur(ThemeBlurSlider.Value);
+        var middleAlpha = (byte)Math.Round(255 * themeOpacity);
+        var middle = new SolidColorBrush(Color.FromArgb(middleAlpha, color.R, color.G, color.B));
         SetCustomControlBrushes(new SolidColorBrush(darkest), new SolidColorBrush(secondDark), middle);
         AccentPaletteHelper.ApplyAccentColor(color);
-        ApplyCustomChromeToShell(color);
+        ApplyCustomChromeToShell(color, themeOpacity, themeBlur);
     }
 
     private static Color Blend(Color from, Color to, double ratio)
@@ -763,17 +866,17 @@ public sealed partial class SettingsPage : Page
         AccentColorsSwitch.ClearValue(Control.ForegroundProperty);
     }
 
-    private static void ApplyCustomChromeToShell(Color accentColor)
+    private static void ApplyCustomChromeToShell(Color accentColor, double themeOpacity, double themeBlur)
     {
         if (App.MainWindow.Content is ShellPage shellPage)
         {
-            shellPage.ApplyCustomChromeTheme(accentColor);
+            shellPage.ApplyCustomChromeTheme(accentColor, themeOpacity, themeBlur);
             return;
         }
 
         if (App.MainWindow.Content is Frame rootFrame && rootFrame.Content is ShellPage frameShell)
         {
-            frameShell.ApplyCustomChromeTheme(accentColor);
+            frameShell.ApplyCustomChromeTheme(accentColor, themeOpacity, themeBlur);
         }
     }
 
@@ -1012,10 +1115,13 @@ public sealed partial class SettingsPage : Page
         var cardColor = AccentPaletteHelper.TryParseHex(savedCardColorText, out var savedCardColor)
             ? savedCardColor
             : Color.FromArgb(0xCC, 0x20, 0x20, 0x20);
+        var savedCardBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.SettingsCardBlur);
+        _settingsCardBlur = ClampBlur(savedCardBlur ?? 0);
 
         _isUpdatingCardColorControls = true;
         CardColorPickerButton.SelectedColor = Color.FromArgb(0xFF, cardColor.R, cardColor.G, cardColor.B);
         CardOpacitySlider.Value = cardColor.A;
+        CardBlurSlider.Value = _settingsCardBlur;
         _isUpdatingCardColorControls = false;
 
         ApplySettingsCardColor(cardColor);
@@ -1049,10 +1155,523 @@ public sealed partial class SettingsPage : Page
         _ = _localSettingsService.SaveSettingAsync(AppSettingKeys.SettingsCardColor, AccentPaletteHelper.ToHex(cardColor));
     }
 
+    private void CardBlurSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isUpdatingCardColorControls)
+        {
+            return;
+        }
+
+        _settingsCardBlur = ClampBlur(e.NewValue);
+        var selected = CardColorPickerButton.SelectedColor;
+        var alpha = (byte)Math.Round(CardOpacitySlider.Value);
+        var cardColor = Color.FromArgb(alpha, selected.R, selected.G, selected.B);
+        ApplySettingsCardColor(cardColor);
+        _ = _localSettingsService.SaveSettingAsync(AppSettingKeys.SettingsCardBlur, _settingsCardBlur);
+    }
+
     private void ApplySettingsCardColor(Color cardColor)
     {
-        Resources["CardBackgroundFillColorDefaultBrush"] = new SolidColorBrush(cardColor);
-        Resources["CardStrokeColorDefaultBrush"] = new SolidColorBrush(cardColor);
+        var textColor = GetReadableTextColor(cardColor);
+        var contrastTarget = textColor == Colors.White ? Colors.White : Colors.Black;
+        var secondaryColor = BlendWithAlpha(cardColor, contrastTarget, 0.08);
+        var strokeColor = BlendWithAlpha(cardColor, contrastTarget, 0.16);
+        var useAcrylic = _settingsCardBlur > 0;
+        if (useAcrylic)
+        {
+            var intensity = Math.Clamp(_settingsCardBlur / 30.0, 0, 1);
+            var tintOpacity = Math.Clamp((cardColor.A / 255.0) * (0.86 - (0.62 * intensity)), 0.08, 0.9);
+            Resources["CardBackgroundFillColorDefaultBrush"] = new AcrylicBrush
+            {
+                TintColor = Color.FromArgb(0xFF, cardColor.R, cardColor.G, cardColor.B),
+                TintOpacity = tintOpacity,
+                FallbackColor = cardColor
+            };
+            Resources["CardBackgroundFillColorSecondaryBrush"] = new AcrylicBrush
+            {
+                TintColor = Color.FromArgb(0xFF, secondaryColor.R, secondaryColor.G, secondaryColor.B),
+                TintOpacity = Math.Clamp(tintOpacity - 0.06, 0.06, 0.86),
+                FallbackColor = secondaryColor
+            };
+        }
+        else
+        {
+            Resources["CardBackgroundFillColorDefaultBrush"] = new SolidColorBrush(cardColor);
+            Resources["CardBackgroundFillColorSecondaryBrush"] = new SolidColorBrush(secondaryColor);
+        }
+
+        Resources["CardStrokeColorDefaultBrush"] = new SolidColorBrush(strokeColor);
+
+        // Keep text readable against dark/light card colors.
+        var readableBrush = new SolidColorBrush(textColor);
+        Resources["TextFillColorPrimaryBrush"] = readableBrush;
+        Resources["TextFillColorSecondaryBrush"] = new SolidColorBrush(Color.FromArgb(0xCC, textColor.R, textColor.G, textColor.B));
+        ApplyReadableForegroundToSettings(readableBrush, _lastAutoReadableTextColor);
+        _lastAutoReadableTextColor = textColor;
+    }
+
+    private static Color GetReadableTextColor(Color background)
+    {
+        var luminance =
+            (0.2126 * background.R / 255.0) +
+            (0.7152 * background.G / 255.0) +
+            (0.0722 * background.B / 255.0);
+
+        return luminance < 0.5 ? Colors.White : Colors.Black;
+    }
+
+    private static Color BlendWithAlpha(Color from, Color to, double ratio)
+    {
+        ratio = Math.Clamp(ratio, 0, 1);
+        var r = (byte)Math.Round(from.R + (to.R - from.R) * ratio);
+        var g = (byte)Math.Round(from.G + (to.G - from.G) * ratio);
+        var b = (byte)Math.Round(from.B + (to.B - from.B) * ratio);
+        return Color.FromArgb(from.A, r, g, b);
+    }
+
+    private void LoadProgramFontOptions()
+    {
+        if (_programFonts.Count > 0)
+        {
+            return;
+        }
+
+        var uniqueNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _programFonts.Add(new FontDisplayItem("Default (System)", true));
+
+        try
+        {
+            using var fontsKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts");
+            if (fontsKey != null)
+            {
+                foreach (var valueName in fontsKey.GetValueNames())
+                {
+                    var name = valueName;
+                    var splitIndex = name.IndexOf('(');
+                    if (splitIndex > 0)
+                    {
+                        name = name[..splitIndex];
+                    }
+
+                    name = name.Trim();
+                    if (string.IsNullOrWhiteSpace(name) || !uniqueNames.Add(name))
+                    {
+                        continue;
+                    }
+
+                    _programFonts.Add(new FontDisplayItem(name, false));
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        _programFonts.Sort((a, b) =>
+        {
+            if (a.IsDefault && !b.IsDefault) return -1;
+            if (!a.IsDefault && b.IsDefault) return 1;
+            return string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+
+        ProgramFontsGridView.ItemsSource = _programFonts;
+    }
+
+    private async Task LoadProgramFontSelectionAsync()
+    {
+        var savedFontFamily = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.ProgramFontFamily);
+        var selected = _programFonts.FirstOrDefault(x =>
+            x.IsDefault
+                ? string.IsNullOrWhiteSpace(savedFontFamily)
+                : string.Equals(x.Name, savedFontFamily, StringComparison.OrdinalIgnoreCase))
+            ?? _programFonts.FirstOrDefault(x => x.IsDefault);
+
+        _isUpdatingProgramFontSelection = true;
+        ProgramFontsGridView.SelectedItem = selected;
+        _isUpdatingProgramFontSelection = false;
+        UpdateProgramFontStatusText(savedFontFamily);
+    }
+
+    private async Task LoadProgramFontStyleAsync()
+    {
+        var savedFontSize = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.ProgramFontSize);
+        var savedBold = await _localSettingsService.ReadSettingAsync<bool?>(AppSettingKeys.ProgramFontBold);
+        var savedItalic = await _localSettingsService.ReadSettingAsync<bool?>(AppSettingKeys.ProgramFontItalic);
+        var savedFamily = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.ProgramFontFamily);
+
+        _isUpdatingProgramFontStyleControls = true;
+        ProgramFontSizeSlider.Value = savedFontSize.HasValue && savedFontSize.Value > 0 ? savedFontSize.Value : 14;
+        ProgramFontBoldSwitch.IsOn = savedBold == true;
+        ProgramFontItalicSwitch.IsOn = savedItalic == true;
+        _isUpdatingProgramFontStyleControls = false;
+
+        ApplyProgramFontToApp(savedFamily);
+    }
+
+    private async void ProgramFontsListExpandButton_Click(object sender, RoutedEventArgs e)
+    {
+        var isOpen = ProgramFontsListPanel.Visibility == Visibility.Visible;
+        ProgramFontsListPanel.Visibility = isOpen ? Visibility.Collapsed : Visibility.Visible;
+        ProgramFontsListExpandIcon.Glyph = isOpen ? "\uE70D" : "\uE70E";
+        await Task.CompletedTask;
+    }
+
+    private async void ProgramFontsGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializingSettings || _isUpdatingProgramFontSelection || ProgramFontsGridView.SelectedItem is not FontDisplayItem selected)
+        {
+            return;
+        }
+
+        var savedValue = selected.IsDefault ? string.Empty : selected.Name;
+        await SaveProgramFontSettingsSnapshotAsync();
+        ApplyProgramFontToApp(savedValue);
+        UpdateProgramFontStatusText(savedValue);
+    }
+
+    private async void ProgramFontSizeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings || _isUpdatingProgramFontStyleControls)
+        {
+            return;
+        }
+
+        await SaveProgramFontSettingsSnapshotAsync();
+        ApplyProgramFontToApp(GetSelectedProgramFontFamilyValue());
+    }
+
+    private async void ProgramFontBoldSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializingSettings || _isUpdatingProgramFontStyleControls)
+        {
+            return;
+        }
+
+        await SaveProgramFontSettingsSnapshotAsync();
+        ApplyProgramFontToApp(GetSelectedProgramFontFamilyValue());
+    }
+
+    private async void ProgramFontItalicSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializingSettings || _isUpdatingProgramFontStyleControls)
+        {
+            return;
+        }
+
+        await SaveProgramFontSettingsSnapshotAsync();
+        ApplyProgramFontToApp(GetSelectedProgramFontFamilyValue());
+    }
+
+    private async void RestoreProgramFontButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isUpdatingProgramFontSelection = true;
+        ProgramFontsGridView.SelectedItem = _programFonts.FirstOrDefault(x => x.IsDefault);
+        _isUpdatingProgramFontSelection = false;
+
+        _isUpdatingProgramFontStyleControls = true;
+        ProgramFontSizeSlider.Value = 14;
+        ProgramFontBoldSwitch.IsOn = false;
+        ProgramFontItalicSwitch.IsOn = false;
+        _isUpdatingProgramFontStyleControls = false;
+
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontFamily, string.Empty);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontSize, 0d);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontBold, false);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontItalic, false);
+
+        ApplyProgramFontToApp(string.Empty);
+        UpdateProgramFontStatusText(string.Empty);
+    }
+
+    private async void ThemeColorExpandButton_Click(object sender, RoutedEventArgs e)
+    {
+        var isOpen = ThemeColorPanel.Visibility == Visibility.Visible;
+        ThemeColorPanel.Visibility = isOpen ? Visibility.Collapsed : Visibility.Visible;
+        ThemeColorExpandIcon.Glyph = isOpen ? "\uE70D" : "\uE70E";
+        await Task.CompletedTask;
+    }
+
+    private async void PageItemsExpandButton_Click(object sender, RoutedEventArgs e)
+    {
+        var isOpen = PageItemsPanel.Visibility == Visibility.Visible;
+        PageItemsPanel.Visibility = isOpen ? Visibility.Collapsed : Visibility.Visible;
+        PageItemsExpandIcon.Glyph = isOpen ? "\uE70D" : "\uE70E";
+        await Task.CompletedTask;
+    }
+
+    private async void InstallExtensionExpandButton_Click(object sender, RoutedEventArgs e)
+    {
+        var isOpen = InstallExtensionPanel.Visibility == Visibility.Visible;
+        InstallExtensionPanel.Visibility = isOpen ? Visibility.Collapsed : Visibility.Visible;
+        InstallExtensionExpandIcon.Glyph = isOpen ? "\uE70D" : "\uE70E";
+        if (!isOpen)
+        {
+            try
+            {
+                await RefreshExtensionsAsync();
+            }
+            catch
+            {
+                ExtensionStatusTextBlock.Text = "Failed to refresh extensions";
+            }
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async void BackgroundImageOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings)
+        {
+            return;
+        }
+
+        var opacity = ClampOpacity(e.NewValue);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.BackgroundImageOpacity, opacity);
+        ApplyBackgroundImageToShell(BackgroundImagePathTextBox.Text, opacity, ClampBlur(BackgroundImageBlurSlider.Value));
+    }
+
+    private async void BackgroundImageBlurSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings)
+        {
+            return;
+        }
+
+        var blur = ClampBlur(e.NewValue);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.BackgroundImageBlur, blur);
+        ApplyBackgroundImageToShell(BackgroundImagePathTextBox.Text, ClampOpacity(BackgroundImageOpacitySlider.Value), blur);
+    }
+
+    private async void ThemeOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings)
+        {
+            return;
+        }
+
+        var opacity = ClampOpacity(e.NewValue);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ThemeColorOpacity, opacity);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ThemeColorBlur, ClampBlur(ThemeBlurSlider.Value));
+
+        if (_isCustomThemeSelected)
+        {
+            ApplyCustomAccentVisual(AccentColorPicker.Color);
+        }
+    }
+
+    private async void ThemeBlurSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings)
+        {
+            return;
+        }
+
+        var blur = ClampBlur(e.NewValue);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ThemeColorBlur, blur);
+
+        if (_isCustomThemeSelected)
+        {
+            ApplyCustomAccentVisual(AccentColorPicker.Color);
+        }
+    }
+
+    private async void WebLayerOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings)
+        {
+            return;
+        }
+
+        var opacity = ClampOpacity(e.NewValue);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebLayerOpacity, opacity);
+        await RefreshActiveWebPageBackgroundInjectionAsync();
+    }
+
+    private async void WebLayerBlurSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializingSettings)
+        {
+            return;
+        }
+
+        var blur = ClampBlur(e.NewValue);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebLayerBlur, blur);
+        await RefreshActiveWebPageBackgroundInjectionAsync();
+    }
+
+    private static double ClampOpacity(double value) => Math.Clamp(value, 0, 1);
+    private static double ClampBlur(double value) => Math.Clamp(value, 0, 30);
+
+    private void ApplyReadableForegroundToSettings(SolidColorBrush readableBrush, Color? previousAutoColor)
+    {
+        ApplyReadableForegroundToElement(SettingsLayoutRoot, readableBrush, previousAutoColor);
+    }
+
+    private static void ApplyReadableForegroundToElement(DependencyObject node, SolidColorBrush readableBrush, Color? previousAutoColor)
+    {
+        if (node is TextBlock textBlock)
+        {
+            var current = textBlock.Foreground as SolidColorBrush;
+            var isUnset = textBlock.ReadLocalValue(TextBlock.ForegroundProperty) == DependencyProperty.UnsetValue;
+            var isPreviouslyAuto = previousAutoColor.HasValue && current != null && current.Color == previousAutoColor.Value;
+            if (isUnset || isPreviouslyAuto)
+            {
+                textBlock.Foreground = readableBrush;
+            }
+        }
+        else if (node is Control control)
+        {
+            var current = control.Foreground as SolidColorBrush;
+            var isUnset = control.ReadLocalValue(Control.ForegroundProperty) == DependencyProperty.UnsetValue;
+            var isPreviouslyAuto = previousAutoColor.HasValue && current != null && current.Color == previousAutoColor.Value;
+            if (isUnset || isPreviouslyAuto)
+            {
+                control.Foreground = readableBrush;
+            }
+        }
+
+        var childCount = VisualTreeHelper.GetChildrenCount(node);
+        for (var i = 0; i < childCount; i++)
+        {
+            ApplyReadableForegroundToElement(VisualTreeHelper.GetChild(node, i), readableBrush, previousAutoColor);
+        }
+    }
+
+    private static void ApplyBackgroundImageToShell(string? path, double opacity, double blur)
+    {
+        var clampedOpacity = ClampOpacity(opacity);
+        var clampedBlur = ClampBlur(blur);
+        if (App.MainWindow.Content is ShellPage shellPage)
+        {
+            shellPage.ApplyBackgroundImage(path, clampedOpacity, clampedBlur);
+            return;
+        }
+
+        if (App.MainWindow.Content is Frame rootFrame && rootFrame.Content is ShellPage frameShell)
+        {
+            frameShell.ApplyBackgroundImage(path, clampedOpacity, clampedBlur);
+        }
+    }
+
+    private static async Task RefreshActiveWebPageBackgroundInjectionAsync()
+    {
+        if (App.MainWindow.Content is ShellPage shellPage &&
+            shellPage.ViewModel.NavigationService.Frame?.Content is WebViewPage webViewPage)
+        {
+            await webViewPage.RefreshWebBackgroundVisualAsync();
+            return;
+        }
+
+        if (App.MainWindow.Content is Frame rootFrame &&
+            rootFrame.Content is ShellPage frameShell &&
+            frameShell.ViewModel.NavigationService.Frame?.Content is WebViewPage frameWebViewPage)
+        {
+            await frameWebViewPage.RefreshWebBackgroundVisualAsync();
+        }
+    }
+
+    private void ApplyProgramFontToApp(string? fontFamily)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(fontFamily) ? string.Empty : fontFamily.Trim();
+        var toApply = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+        var size = ProgramFontSizeSlider?.Value ?? 0;
+        var applySize = size > 0 ? size : (double?)null;
+        var isBold = ProgramFontBoldSwitch?.IsOn == true;
+        var isItalic = ProgramFontItalicSwitch?.IsOn == true;
+        ApplySettingsTitleFontSizes(applySize);
+
+        if (toApply == null)
+        {
+            ClearValue(Control.FontFamilyProperty);
+        }
+        else
+        {
+            FontFamily = new FontFamily(toApply);
+        }
+
+        if (applySize.HasValue)
+        {
+            FontSize = applySize.Value;
+        }
+        else
+        {
+            ClearValue(Control.FontSizeProperty);
+        }
+
+        FontWeight = isBold ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+        FontStyle = isItalic ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal;
+
+        if (App.MainWindow.Content is ShellPage shellPage)
+        {
+            shellPage.ApplyProgramFontFamily(toApply);
+            shellPage.ApplyProgramTextStyle(applySize, isBold, isItalic);
+            return;
+        }
+
+        if (App.MainWindow.Content is Frame rootFrame && rootFrame.Content is ShellPage frameShell)
+        {
+            frameShell.ApplyProgramFontFamily(toApply);
+            frameShell.ApplyProgramTextStyle(applySize, isBold, isItalic);
+        }
+    }
+
+    private void ApplySettingsTitleFontSizes(double? baseSize)
+    {
+        var effectiveBase = baseSize.HasValue && baseSize.Value > 0 ? baseSize.Value : 14;
+        var level1 = effectiveBase + 6;
+        var level2 = effectiveBase + 1;
+        var options = effectiveBase + 1;
+        Resources["Level1TitleFontSize"] = level1;
+        Resources["Level2TitleFontSize"] = level2;
+        Resources["ThemeModeOptionFontSize"] = options;
+
+        PersonalizationTitleTextBlock.FontSize = level1;
+        GlobalSettingsTitleTextBlock.FontSize = level1;
+        AboutTitleTextBlock.FontSize = level1;
+        WebSettingsTitleTextBlock.FontSize = level1;
+
+        ThemeTitleTextBlock.FontSize = level2;
+        ProgramFontTitleTextBlock.FontSize = level2;
+        BackgroundImageTitleTextBlock.FontSize = level2;
+        GlobalHotkeyTitleTextBlock.FontSize = level2;
+        PageItemsTitleTextBlock.FontSize = level2;
+        DownloadPathTitleTextBlock.FontSize = level2;
+        WebOpacityTitleTextBlock.FontSize = level2;
+        ExtensionsTitleTextBlock.FontSize = level2;
+
+        ThemeLightRadioButton.FontSize = options;
+        ThemeDarkRadioButton.FontSize = options;
+        ThemeDefaultRadioButton.FontSize = options;
+        ThemeCustomRadioButton.FontSize = options;
+    }
+
+    private string GetSelectedProgramFontFamilyValue()
+    {
+        if (ProgramFontsGridView.SelectedItem is not FontDisplayItem selected)
+        {
+            return string.Empty;
+        }
+
+        return selected.IsDefault ? string.Empty : selected.Name;
+    }
+
+    private async Task SaveProgramFontSettingsSnapshotAsync()
+    {
+        var family = GetSelectedProgramFontFamilyValue();
+        var size = ProgramFontSizeSlider?.Value ?? 14d;
+        var bold = ProgramFontBoldSwitch?.IsOn == true;
+        var italic = ProgramFontItalicSwitch?.IsOn == true;
+
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontFamily, family);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontSize, size);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontBold, bold);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ProgramFontItalic, italic);
+    }
+
+    private void UpdateProgramFontStatusText(string? fontFamily)
+    {
+        ProgramFontStatusTextBlock.Text = string.IsNullOrWhiteSpace(fontFamily) ? "Current: Default (System)" : $"Current: {fontFamily}";
     }
 
     private static bool HasInteractiveAncestor(DependencyObject source, Border boundary)
@@ -1090,9 +1709,9 @@ public sealed partial class SettingsPage : Page
         var cards = new Dictionary<string, Border>
         {
             [PersonalizationCard.Name] = PersonalizationCard,
-            [HotkeyCard.Name] = HotkeyCard,
+            [GlobalSettingsCard.Name] = GlobalSettingsCard,
             [AboutCard.Name] = AboutCard,
-            [PageSettingsCard.Name] = PageSettingsCard
+            [WebSettingsCard.Name] = WebSettingsCard
         };
         var placed = new HashSet<string>();
 
@@ -1120,9 +1739,9 @@ public sealed partial class SettingsPage : Page
 
         // Add cards not present in saved layout using default columns.
         AppendCardIfMissing(PersonalizationCard, ContentArea, placed);
-        AppendCardIfMissing(HotkeyCard, ContentArea, placed);
+        AppendCardIfMissing(GlobalSettingsCard, ContentArea, placed);
         AppendCardIfMissing(AboutCard, RightColumnStack, placed);
-        AppendCardIfMissing(PageSettingsCard, RightColumnStack, placed);
+        AppendCardIfMissing(WebSettingsCard, RightColumnStack, placed);
     }
 
     private static void AppendCardIfMissing(Border card, Panel target, HashSet<string> placed)
@@ -1139,5 +1758,21 @@ public sealed partial class SettingsPage : Page
 
         target.Children.Add(card);
         placed.Add(card.Name);
+    }
+
+    private sealed class FontDisplayItem
+    {
+        public FontDisplayItem(string name, bool isDefault)
+        {
+            Name = name;
+            IsDefault = isDefault;
+            DisplayFontFamily = isDefault ? "Segoe UI" : name;
+        }
+
+        public string Name { get; }
+
+        public bool IsDefault { get; }
+
+        public string DisplayFontFamily { get; }
     }
 }
