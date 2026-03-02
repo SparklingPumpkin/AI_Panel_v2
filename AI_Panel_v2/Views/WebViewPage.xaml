@@ -8,31 +8,85 @@
     behaviors:NavigationViewHeaderBehavior.HeaderMode="Never"
     mc:Ignorable="d">
 
-    <Grid x:Name="ContentArea">
+    <Grid x:Name="ContentArea" PointerMoved="ContentArea_PointerMoved" SizeChanged="ContentArea_SizeChanged">
         <WebView2 x:Name="WebView" />
 
         <Border
-            x:Name="ExtensionsBarHost"
-            HorizontalAlignment="Right"
+            x:Name="WebToolsHost"
+            HorizontalAlignment="Left"
             VerticalAlignment="Top"
-            Margin="8"
-            Padding="8,4"
-            CornerRadius="16"
+            Padding="6"
+            CornerRadius="12"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1"
-            PointerEntered="ExtensionsBarHost_PointerEntered"
-            PointerExited="ExtensionsBarHost_PointerExited">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock
-                    VerticalAlignment="Center"
-                    Margin="4,0"
-                    Text="Extensions" />
-                <StackPanel
-                    x:Name="ExtensionsButtonsPanel"
-                    Orientation="Horizontal"
-                    Spacing="6"
-                    Visibility="Collapsed" />
+            BorderThickness="1">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="WebToolsTransform" />
+            </Border.RenderTransform>
+            <StackPanel Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Border
+                        x:Name="ToolDragHandle"
+                        Width="28"
+                        Height="28"
+                        CornerRadius="6"
+                        Background="Transparent"
+                        PointerPressed="ToolDragHandle_PointerPressed"
+                        PointerMoved="ToolDragHandle_PointerMoved"
+                        PointerReleased="ToolDragHandle_PointerReleased"
+                        PointerCanceled="ToolDragHandle_PointerReleased">
+                        <FontIcon
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            Glyph="&#xE76F;" />
+                    </Border>
+                    <Button
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Command="{x:Bind ViewModel.BrowserBackCommand}">
+                        <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE72B;" />
+                    </Button>
+                    <Button
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Command="{x:Bind ViewModel.BrowserForwardCommand}">
+                        <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE72A;" />
+                    </Button>
+                    <Button
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Command="{x:Bind ViewModel.ReloadCommand}">
+                        <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE72C;" />
+                    </Button>
+                    <Button
+                        x:Name="ExtensionsToggleButton"
+                        Width="30"
+                        Height="30"
+                        Padding="0"
+                        Click="ExtensionsToggleButton_Click">
+                        <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xEA86;" />
+                    </Button>
+                </StackPanel>
+
+                <Border
+                    x:Name="ExtensionsBarHost"
+                    Padding="4"
+                    CornerRadius="8"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <StackPanel
+                            x:Name="ExtensionsButtonsPanel"
+                            Orientation="Horizontal"
+                            Spacing="6" />
+                    </ScrollViewer>
+                </Border>
             </StackPanel>
         </Border>
 

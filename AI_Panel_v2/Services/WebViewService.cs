@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 
 using AI_Panel_v2.Contracts.Services;
@@ -14,6 +16,10 @@ namespace AI_Panel_v2.Services;
 public class WebViewService : IWebViewService
 {
     private const string DefaultDownloadPath = @"D:\";
+    private static readonly HttpClient StoreHttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(5)
+    };
     private WebView2? _webView;
     private CoreWebView2? _coreWebView2;
     private Uri? _pendingSource;
@@ -69,15 +75,40 @@ public class WebViewService : IWebViewService
         {
             var optionsUrls = await ReadExtensionOptionsUrlsAsync();
             var popupUrls = await ReadExtensionPopupUrlsAsync();
+            var iconUrls = await ReadExtensionIconUrlsAsync();
             var extensions = await profile.GetBrowserExtensionsAsync();
-            return extensions.Select(x => new BrowserExtensionInfo
+            var results = new List<BrowserExtensionInfo>(extensions.Count);
+
+            foreach (var extension in extensions)
             {
-                Id = x.Id,
-                Name = x.Name,
-                IsEnabled = x.IsEnabled,
-                OptionsUrl = optionsUrls.TryGetValue(x.Id, out var optionsUrl) ? optionsUrl : null,
-                PopupUrl = popupUrls.TryGetValue(x.Id, out var popupUrl) ? popupUrl : null
-            }).ToList();
+                var iconUrl = iconUrls.TryGetValue(extension.Id, out var savedIconUrl) ? savedIconUrl : null;
+                if (string.IsNullOrWhiteSpace(iconUrl))
+                {
+                    iconUrl = TryResolveInstalledExtensionIconUrl(extension.Id);
+                    if (string.IsNullOrWhiteSpace(iconUrl))
+                    {
+                        iconUrl = await TryFetchStoreIconUrlAsync(extension.Id);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(iconUrl))
+                    {
+                        iconUrls[extension.Id] = iconUrl;
+                    }
+                }
+
+                results.Add(new BrowserExtensionInfo
+                {
+                    Id = extension.Id,
+                    Name = extension.Name,
+                    IsEnabled = extension.IsEnabled,
+                    OptionsUrl = optionsUrls.TryGetValue(extension.Id, out var optionsUrl) ? optionsUrl : null,
+                    PopupUrl = popupUrls.TryGetValue(extension.Id, out var popupUrl) ? popupUrl : null,
+                    IconUrl = iconUrl
+                });
+            }
+
+            await _localSettingsService.SaveSettingAsync(AppSettingKeys.ExtensionIconUrls, iconUrls);
+            return results;
         }
         catch
         {
@@ -120,6 +151,12 @@ public class WebViewService : IWebViewService
             {
                 await SaveExtensionPopupUrlAsync(extension.Id, popupUrl);
             }
+            var iconPath = ReadBestIconPathFromManifest(resolvedFolderPath);
+            var iconUrl = BuildOptionsUrl(extension.Id, iconPath);
+            if (!string.IsNullOrWhiteSpace(iconUrl))
+            {
+                await SaveExtensionIconUrlAsync(extension.Id, iconUrl);
+            }
 
             return (true, null, new BrowserExtensionInfo
             {
@@ -127,7 +164,8 @@ public class WebViewService : IWebViewService
                 Name = extension.Name,
                 IsEnabled = extension.IsEnabled,
                 OptionsUrl = optionsUrl,
-                PopupUrl = popupUrl
+                PopupUrl = popupUrl,
+                IconUrl = iconUrl
             });
         }
         catch (Exception ex)
@@ -168,6 +206,7 @@ public class WebViewService : IWebViewService
             await extension.RemoveAsync();
             await RemoveExtensionOptionsUrlAsync(extensionId);
             await RemoveExtensionPopupUrlAsync(extensionId);
+            await RemoveExtensionIconUrlAsync(extensionId);
             return true;
         }
         catch
@@ -348,6 +387,87 @@ public class WebViewService : IWebViewService
         return null;
     }
 
+    private static string? ReadBestIconPathFromManifest(string extensionFolderPath)
+    {
+        var manifestPath = Path.Combine(extensionFolderPath, "manifest.json");
+        if (!File.Exists(manifestPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(manifestPath);
+            using var doc = JsonDocument.Parse(stream);
+            var root = doc.RootElement;
+
+            if (TryReadBestIconFromObject(root, "action", out var iconPath) ||
+                TryReadBestIconFromObject(root, "browser_action", out iconPath) ||
+                TryReadBestIconFromObject(root, "icons", out iconPath))
+            {
+                return iconPath;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static bool TryReadBestIconFromObject(JsonElement root, string propertyName, out string? iconPath)
+    {
+        iconPath = null;
+        if (!root.TryGetProperty(propertyName, out var iconNode))
+        {
+            return false;
+        }
+
+        JsonElement iconsObject;
+        if (iconNode.ValueKind == JsonValueKind.Object && iconNode.TryGetProperty("default_icon", out var defaultIcon))
+        {
+            iconsObject = defaultIcon;
+        }
+        else
+        {
+            iconsObject = iconNode;
+        }
+
+        if (iconsObject.ValueKind == JsonValueKind.String)
+        {
+            iconPath = iconsObject.GetString();
+            return !string.IsNullOrWhiteSpace(iconPath);
+        }
+
+        if (iconsObject.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var candidates = new List<(int Size, string Path)>();
+        foreach (var property in iconsObject.EnumerateObject())
+        {
+            if (!int.TryParse(property.Name, out var size) || property.Value.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var path = property.Value.GetString();
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                candidates.Add((size, path));
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            return false;
+        }
+
+        iconPath = candidates.OrderByDescending(x => x.Size).First().Path;
+        return true;
+    }
+
     private async Task<Dictionary<string, string>> ReadExtensionOptionsUrlsAsync()
     {
         return await _localSettingsService.ReadSettingAsync<Dictionary<string, string>>(AppSettingKeys.ExtensionOptionsUrls)
@@ -390,6 +510,95 @@ public class WebViewService : IWebViewService
         {
             await _localSettingsService.SaveSettingAsync(AppSettingKeys.ExtensionPopupUrls, urls);
         }
+    }
+
+    private async Task<Dictionary<string, string>> ReadExtensionIconUrlsAsync()
+    {
+        return await _localSettingsService.ReadSettingAsync<Dictionary<string, string>>(AppSettingKeys.ExtensionIconUrls)
+            ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task SaveExtensionIconUrlAsync(string extensionId, string iconUrl)
+    {
+        var urls = await ReadExtensionIconUrlsAsync();
+        urls[extensionId] = iconUrl;
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.ExtensionIconUrls, urls);
+    }
+
+    private async Task RemoveExtensionIconUrlAsync(string extensionId)
+    {
+        var urls = await ReadExtensionIconUrlsAsync();
+        if (urls.Remove(extensionId))
+        {
+            await _localSettingsService.SaveSettingAsync(AppSettingKeys.ExtensionIconUrls, urls);
+        }
+    }
+
+    private static string? TryResolveInstalledExtensionIconUrl(string extensionId)
+    {
+        if (string.IsNullOrWhiteSpace(extensionId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var extensionsRoot = Path.Combine(WebViewPathHelper.GetAppWebViewUserDataDir(), "Default", "Extensions", extensionId);
+            if (!Directory.Exists(extensionsRoot))
+            {
+                return null;
+            }
+
+            var versionFolder = Directory.GetDirectories(extensionsRoot)
+                .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(versionFolder))
+            {
+                return null;
+            }
+
+            var iconPath = ReadBestIconPathFromManifest(versionFolder);
+            if (string.IsNullOrWhiteSpace(iconPath))
+            {
+                return null;
+            }
+
+            var fullPath = Path.Combine(versionFolder, iconPath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(fullPath))
+            {
+                return null;
+            }
+
+            return new Uri(fullPath).AbsoluteUri;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<string?> TryFetchStoreIconUrlAsync(string extensionId)
+    {
+        if (string.IsNullOrWhiteSpace(extensionId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var detailUrl = $"https://microsoftedge.microsoft.com/addons/detail/{extensionId}";
+            var html = await StoreHttpClient.GetStringAsync(detailUrl);
+            var match = Regex.Match(html, "<meta\\s+property=\"og:image\"\\s+content=\"([^\"]+)\"", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
     }
 
     private async Task ApplyDownloadPathAsync(CoreWebView2 coreWebView2)

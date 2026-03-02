@@ -25,4 +25,6 @@ public static class AppSettingKeys
     public const string ExtensionOptionsUrls = "ExtensionOptionsUrls";
 
     public const string ExtensionPopupUrls = "ExtensionPopupUrls";
+
+    public const string ExtensionIconUrls = "ExtensionIconUrls";
 }

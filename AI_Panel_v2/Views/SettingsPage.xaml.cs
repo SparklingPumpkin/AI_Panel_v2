@@ -387,7 +387,7 @@ public sealed partial class SettingsPage : Page
             @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
             @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
         };
-        var userDataDir = GetAppWebViewUserDataDir();
+        var userDataDir = WebViewPathHelper.GetAppWebViewUserDataDir();
 
         foreach (var edgeExe in candidates)
         {
@@ -413,14 +413,6 @@ public sealed partial class SettingsPage : Page
         }
 
         return false;
-    }
-
-    private static string GetAppWebViewUserDataDir()
-    {
-        var processName = Process.GetCurrentProcess().ProcessName;
-        var userDataDir = Path.Combine(AppContext.BaseDirectory, $"{processName}.exe.WebView2", "EBWebView");
-        Directory.CreateDirectory(userDataDir);
-        return userDataDir;
     }
 
     private async void RefreshExtensionsButton_Click(object sender, RoutedEventArgs e)
@@ -452,7 +444,7 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private async Task RefreshExtensionsAsync(string? keepSelectionId = null)
+    private async Task RefreshExtensionsAsync()
     {
         var extensions = await _webViewService.GetExtensionsAsync();
         RenderExtensionRows(extensions);
@@ -473,12 +465,50 @@ public sealed partial class SettingsPage : Page
 
         foreach (var extension in extensions)
         {
+            var rowContainer = new Border
+            {
+                Margin = new Thickness(0, 0, 0, 6),
+                Padding = new Thickness(8, 7, 8, 7),
+                CornerRadius = new CornerRadius(8),
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0x88, 0x88, 0x88)),
+                Background = new SolidColorBrush(Color.FromArgb(0x12, 0x88, 0x88, 0x88))
+            };
+
             var row = new Grid
             {
                 ColumnSpacing = 8
             };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var actionPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var toggleButton = new Button
+            {
+                Content = extension.IsEnabled ? "Disable" : "Enable",
+                Tag = extension,
+                MinWidth = 76,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            toggleButton.Click += ToggleExtensionButton_Click;
+
+            var uninstallButton = new Button
+            {
+                Content = "Uninstall",
+                Tag = extension,
+                MinWidth = 78,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            uninstallButton.Click += UninstallExtensionButton_Click;
+
+            actionPanel.Children.Add(toggleButton);
+            actionPanel.Children.Add(uninstallButton);
 
             var textPanel = new StackPanel
             {
@@ -487,28 +517,23 @@ public sealed partial class SettingsPage : Page
             textPanel.Children.Add(new TextBlock
             {
                 Text = extension.Name,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 220
             });
+
             textPanel.Children.Add(new TextBlock
             {
                 Text = extension.IsEnabled ? "Enabled" : "Disabled",
                 Foreground = new SolidColorBrush(extension.IsEnabled ? Color.FromArgb(0xFF, 0x29, 0x8A, 0x3B) : Color.FromArgb(0xCC, 0x88, 0x88, 0x88))
             });
 
-            var toggleButton = new Button
-            {
-                Content = extension.IsEnabled ? "Disable" : "Enable",
-                Tag = extension,
-                MinWidth = 84,
-                HorizontalAlignment = HorizontalAlignment.Right
-            };
-            toggleButton.Click += ToggleExtensionButton_Click;
-
-            Grid.SetColumn(textPanel, 0);
-            Grid.SetColumn(toggleButton, 1);
+            Grid.SetColumn(actionPanel, 0);
+            Grid.SetColumn(textPanel, 1);
+            row.Children.Add(actionPanel);
             row.Children.Add(textPanel);
-            row.Children.Add(toggleButton);
-            ExtensionsRowsPanel.Children.Add(row);
+            rowContainer.Child = row;
+            ExtensionsRowsPanel.Children.Add(rowContainer);
         }
     }
 
@@ -526,7 +551,22 @@ public sealed partial class SettingsPage : Page
             : (targetState ? "Enable failed" : "Disable failed");
         if (success)
         {
-            await RefreshExtensionsAsync(extension.Id);
+            await RefreshExtensionsAsync();
+        }
+    }
+
+    private async void UninstallExtensionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not BrowserExtensionInfo extension)
+        {
+            return;
+        }
+
+        var success = await _webViewService.RemoveExtensionAsync(extension.Id);
+        ExtensionStatusTextBlock.Text = success ? "Uninstalled" : "Uninstall failed";
+        if (success)
+        {
+            await RefreshExtensionsAsync();
         }
     }
 

@@ -11,4 +11,6 @@ public class BrowserExtensionInfo
     public string? OptionsUrl { get; init; }
 
     public string? PopupUrl { get; init; }
+
+    public string? IconUrl { get; init; }
 }
