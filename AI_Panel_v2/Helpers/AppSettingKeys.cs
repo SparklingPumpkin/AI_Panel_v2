@@ -17,4 +17,12 @@ public static class AppSettingKeys
     public const string AccentColor = "AccentColor";
 
     public const string SettingsCardLayout = "SettingsCardLayout";
+
+    public const string SettingsCardColor = "SettingsCardColor";
+
+    public const string WebViewDownloadPath = "WebViewDownloadPath";
+
+    public const string ExtensionOptionsUrls = "ExtensionOptionsUrls";
+
+    public const string ExtensionPopupUrls = "ExtensionPopupUrls";
 }

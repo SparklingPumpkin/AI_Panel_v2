@@ -25,6 +25,9 @@ public sealed partial class ShellPage : Page
         "ButtonBackgroundPointerOver",
         "ButtonBackgroundPressed",
         "ButtonForeground",
+        "AccentFillColorDefaultBrush",
+        "AccentFillColorSecondaryBrush",
+        "TextOnAccentFillColorPrimaryBrush",
         "ControlFillColorDefaultBrush",
         "ControlFillColorSecondaryBrush",
         "ControlFillColorTertiaryBrush",
@@ -34,6 +37,8 @@ public sealed partial class ShellPage : Page
 
     private const string FallbackWebUrl = "https://docs.microsoft.com/windows/apps/";
     private readonly ILocalSettingsService _localSettingsService;
+    private Brush? _customSecondLightBrush;
+    private bool _isCustomChromeApplied;
     private readonly List<NavigationViewItem> _dynamicWebItems = new();
     private readonly List<NavigationViewItem> _dynamicPageItems = new();
     private readonly Dictionary<string, int> _pageTypeCounters = new()
@@ -91,21 +96,28 @@ public sealed partial class ShellPage : Page
             PinToggleButton.IsChecked = mainWindow.IsPinned;
         }
 
-        _ = ReloadWebItemsAsync();
+        await ReloadWebItemsAsync();
+        NavigateToFirstWebItemOnStartup();
         UpdateCloseButtonsVisibility();
         await ApplySavedChromeThemeAsync();
+        ApplyPinPressedVisual();
     }
 
     public void ApplyCustomChromeTheme(Color accent)
     {
-        var middle = accent;
+        var darkest = Blend(accent, Colors.Black, 0.55);
         var secondDark = Blend(accent, Colors.Black, 0.35);
+        var middle = Color.FromArgb(0xFF, accent.R, accent.G, accent.B);
         var secondLight = Blend(accent, Colors.White, 0.65);
 
         AppTitleBar.Background = new SolidColorBrush(middle);
-        RootLayout.Background = new SolidColorBrush(secondLight);
+        RootLayout.Background = new SolidColorBrush(middle);
         ApplyPaneBrushOverrides(new SolidColorBrush(middle));
-        ApplyAppBrushOverrides(secondDark, secondLight);
+        ApplyAppBrushOverrides(darkest, secondDark, secondLight);
+        PinToggleButton.Foreground = new SolidColorBrush(secondDark);
+        _customSecondLightBrush = new SolidColorBrush(secondLight);
+        _isCustomChromeApplied = true;
+        ApplyPinPressedVisual();
     }
 
     public void ClearCustomChromeTheme()
@@ -122,6 +134,10 @@ public sealed partial class ShellPage : Page
 
         RemovePaneBrushOverrides();
         RemoveAppBrushOverrides();
+        PinToggleButton.ClearValue(Control.ForegroundProperty);
+        PinToggleButton.ClearValue(Control.BackgroundProperty);
+        _customSecondLightBrush = null;
+        _isCustomChromeApplied = false;
     }
 
     private async Task ApplySavedChromeThemeAsync()
@@ -150,6 +166,9 @@ public sealed partial class ShellPage : Page
         NavigationViewControl.Resources["NavigationViewExpandedPaneBackground"] = paneBrush;
         NavigationViewControl.Resources["NavigationViewCompactPaneBackground"] = paneBrush;
         NavigationViewControl.Resources["NavigationViewMinimalPaneBackground"] = paneBrush;
+        NavigationViewControl.Resources["NavigationViewPaneBackground"] = paneBrush;
+        NavigationViewControl.Resources["NavigationViewTopPaneBackground"] = paneBrush;
+        NavigationViewControl.Resources["NavigationViewLeftPaneBackground"] = paneBrush;
     }
 
     private void RemovePaneBrushOverrides()
@@ -158,19 +177,24 @@ public sealed partial class ShellPage : Page
         NavigationViewControl.Resources.Remove("NavigationViewExpandedPaneBackground");
         NavigationViewControl.Resources.Remove("NavigationViewCompactPaneBackground");
         NavigationViewControl.Resources.Remove("NavigationViewMinimalPaneBackground");
+        NavigationViewControl.Resources.Remove("NavigationViewPaneBackground");
+        NavigationViewControl.Resources.Remove("NavigationViewTopPaneBackground");
+        NavigationViewControl.Resources.Remove("NavigationViewLeftPaneBackground");
     }
 
-    private static void ApplyAppBrushOverrides(Color secondDark, Color secondLight)
+    private static void ApplyAppBrushOverrides(Color darkest, Color secondDark, Color secondLight)
     {
         var resources = Application.Current.Resources;
         resources["ButtonBackground"] = new SolidColorBrush(secondDark);
         resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(Blend(secondDark, Colors.Black, 0.12));
         resources["ButtonBackgroundPressed"] = new SolidColorBrush(Blend(secondDark, Colors.Black, 0.22));
         resources["ButtonForeground"] = new SolidColorBrush(Colors.White);
+        resources["AccentFillColorDefaultBrush"] = new SolidColorBrush(darkest);
+        resources["AccentFillColorSecondaryBrush"] = new SolidColorBrush(darkest);
+        resources["TextOnAccentFillColorPrimaryBrush"] = new SolidColorBrush(Colors.White);
         resources["ControlFillColorDefaultBrush"] = new SolidColorBrush(secondLight);
         resources["ControlFillColorSecondaryBrush"] = new SolidColorBrush(secondLight);
         resources["ControlFillColorTertiaryBrush"] = new SolidColorBrush(secondLight);
-        resources["CardBackgroundFillColorDefaultBrush"] = new SolidColorBrush(secondLight);
         resources["CardStrokeColorDefaultBrush"] = new SolidColorBrush(Blend(secondDark, Colors.White, 0.4));
     }
 
@@ -318,7 +342,19 @@ public sealed partial class ShellPage : Page
         {
             var isPinned = PinToggleButton.IsChecked == true;
             mainWindow.SetPinned(isPinned);
+            ApplyPinPressedVisual();
         }
+    }
+
+    private void ApplyPinPressedVisual()
+    {
+        if (_isCustomChromeApplied && PinToggleButton.IsChecked == true && _customSecondLightBrush != null)
+        {
+            PinToggleButton.Background = _customSecondLightBrush;
+            return;
+        }
+
+        PinToggleButton.Background = new SolidColorBrush(Colors.Transparent);
     }
 
     private void PinToggleButton_PointerEntered(object sender, PointerRoutedEventArgs e) => AnimatePinButtonScale(1.05);
@@ -574,6 +610,17 @@ public sealed partial class ShellPage : Page
 
         ViewModel.NavigationService.NavigateTo(typeof(MainViewModel).FullName!);
         NavigationViewControl.SelectedItem = null;
+    }
+
+    private void NavigateToFirstWebItemOnStartup()
+    {
+        if (_dynamicWebItems.Count == 0)
+        {
+            return;
+        }
+
+        ViewModel.NavigationService.NavigateTo(typeof(WebViewViewModel).FullName!, 0);
+        NavigationViewControl.SelectedItem = _dynamicWebItems[0];
     }
 
     private sealed record PageTypeOption(string DisplayName, string PageKey, string Glyph);

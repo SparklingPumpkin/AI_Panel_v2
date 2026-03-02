@@ -43,11 +43,12 @@ public class NavigationViewService : INavigationViewService
         }
     }
 
-    public NavigationViewItem? GetSelectedItem(Type pageType)
+    public NavigationViewItem? GetSelectedItem(Type pageType, object? navigationParameter = null)
     {
         if (_navigationView != null)
         {
-            return GetSelectedItem(_navigationView.MenuItems, pageType) ?? GetSelectedItem(_navigationView.FooterMenuItems, pageType);
+            return GetSelectedItem(_navigationView.MenuItems, pageType, navigationParameter) ??
+                   GetSelectedItem(_navigationView.FooterMenuItems, pageType, navigationParameter);
         }
 
         return null;
@@ -73,16 +74,16 @@ public class NavigationViewService : INavigationViewService
         }
     }
 
-    private NavigationViewItem? GetSelectedItem(IEnumerable<object> menuItems, Type pageType)
+    private NavigationViewItem? GetSelectedItem(IEnumerable<object> menuItems, Type pageType, object? navigationParameter)
     {
         foreach (var item in menuItems.OfType<NavigationViewItem>())
         {
-            if (IsMenuItemForPageType(item, pageType))
+            if (IsMenuItemForPageType(item, pageType, navigationParameter))
             {
                 return item;
             }
 
-            var selectedChild = GetSelectedItem(item.MenuItems, pageType);
+            var selectedChild = GetSelectedItem(item.MenuItems, pageType, navigationParameter);
             if (selectedChild != null)
             {
                 return selectedChild;
@@ -92,11 +93,22 @@ public class NavigationViewService : INavigationViewService
         return null;
     }
 
-    private bool IsMenuItemForPageType(NavigationViewItem menuItem, Type sourcePageType)
+    private bool IsMenuItemForPageType(NavigationViewItem menuItem, Type sourcePageType, object? navigationParameter)
     {
         if (menuItem.GetValue(NavigationHelper.NavigateToProperty) is string pageKey)
         {
-            return _pageService.GetPageType(pageKey) == sourcePageType;
+            if (_pageService.GetPageType(pageKey) != sourcePageType)
+            {
+                return false;
+            }
+
+            if (navigationParameter == null)
+            {
+                return true;
+            }
+
+            var itemParameter = menuItem.GetValue(NavigationHelper.NavigationParameterProperty);
+            return Equals(itemParameter, navigationParameter);
         }
 
         return false;

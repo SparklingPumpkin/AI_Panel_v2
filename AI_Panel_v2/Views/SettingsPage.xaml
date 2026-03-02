@@ -25,7 +25,10 @@
         VerticalScrollBarVisibility="Auto"
         HorizontalScrollMode="Enabled"
         VerticalScrollMode="Enabled">
-        <Grid x:Name="SettingsLayoutRoot" Margin="18">
+        <Grid x:Name="SettingsLayoutRoot"
+              Margin="18"
+              Background="Transparent"
+              RightTapped="SettingsLayoutRoot_RightTapped">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -133,6 +136,25 @@
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock x:Name="AccentPaletteStatusTextBlock" VerticalAlignment="Center" />
+                                <Border Style="{StaticResource SectionCardStyle}" Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Settings Card Color" FontWeight="SemiBold" />
+                                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                            <toolkit:ColorPickerButton
+                                                x:Name="CardColorPickerButton"
+                                                SelectedColor="LightBlue" />
+                                            <StackPanel Width="220" Spacing="4">
+                                                <TextBlock Text="Card Opacity" />
+                                                <Slider
+                                                    x:Name="CardOpacitySlider"
+                                                    Minimum="0"
+                                                    Maximum="255"
+                                                    StepFrequency="1"
+                                                    ValueChanged="CardOpacitySlider_ValueChanged" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -204,6 +226,32 @@
                                 <TextBlock x:Name="WebItemsStatusTextBlock" VerticalAlignment="Center" />
                             </StackPanel>
                         </StackPanel>
+
+                        <TextBlock Margin="0,14,0,0" Text="Download Path" />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                            <TextBox x:Name="DownloadPathTextBox" Width="360" PlaceholderText="D:\" />
+                            <Button Content="Save Download Path" Click="SaveDownloadPathButton_Click" />
+                            <TextBlock x:Name="DownloadPathStatusTextBlock" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <TextBlock Margin="0,14,0,0" Text="Browser Extensions (WebView2)" />
+                        <TextBlock Margin="0,4,0,0" TextWrapping="WrapWholeWords" Text="Edge Add-ons can be browsed from the link below. Due WebView2 restrictions, install is from unpacked extension folder." />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                            <Button Content="Open Edge Add-ons" Click="OpenEdgeAddonsButton_Click" />
+                            <Button Content="Open App Profile Dev Settings" Click="OpenExtensionDevModeButton_Click" />
+                            <Button Content="Refresh Extensions" Click="RefreshExtensionsButton_Click" />
+                        </StackPanel>
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                            <TextBox x:Name="ExtensionFolderPathTextBox" Width="360" PlaceholderText="Unpacked extension folder path" />
+                            <Button Content="Install Extension" Click="InstallExtensionButton_Click" />
+                            <TextBlock x:Name="ExtensionStatusTextBlock" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Border Margin="0,10,0,0" Style="{StaticResource SectionCardStyle}" Padding="10">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Installed Extensions" FontWeight="SemiBold" />
+                                <StackPanel x:Name="ExtensionsRowsPanel" Spacing="6" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

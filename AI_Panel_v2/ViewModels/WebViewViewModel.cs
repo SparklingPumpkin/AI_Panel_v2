@@ -87,6 +87,9 @@ public partial class WebViewViewModel : ObservableRecipient, INavigationAware
     {
         try
         {
+            WebViewService.NavigationCompleted -= OnNavigationCompleted;
+            WebViewService.NavigationCompleted += OnNavigationCompleted;
+
             var targetSource = await ResolveSourceAsync(parameter);
             if (Uri.Compare(Source, targetSource, UriComponents.AbsoluteUri, UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0)
             {
@@ -98,12 +101,12 @@ public partial class WebViewViewModel : ObservableRecipient, INavigationAware
             IsLoading = true;
             HasFailures = false;
             Source = targetSource;
-            WebViewService.NavigationCompleted -= OnNavigationCompleted;
-            WebViewService.NavigationCompleted += OnNavigationCompleted;
+            WebViewService.Navigate(targetSource);
         }
         catch
         {
             Source = new Uri(FallbackWebUrl);
+            WebViewService.Navigate(Source);
             IsLoading = false;
             HasFailures = true;
         }
@@ -111,7 +114,6 @@ public partial class WebViewViewModel : ObservableRecipient, INavigationAware
 
     public void OnNavigatedFrom()
     {
-        WebViewService.UnregisterEvents();
         WebViewService.NavigationCompleted -= OnNavigationCompleted;
     }
 
