@@ -1,0 +1,143 @@
+#page-header,
+header#page-header,
+header[data-testid="page-header"],
+main #page-header {
+  background: rgba(255, 255, 255, 0.10) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  overflow: hidden !important;
+}
+
+/* Override common ChatGPT sidebar color tokens */
+:root {
+  --sidebar-surface-primary: rgba(255, 255, 255, 0.08) !important;
+  --sidebar-surface-secondary: rgba(255, 255, 255, 0.06) !important;
+  --bg-elevated-secondary: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* ChatGPT left sidebar container (open/collapsed variants) */
+div.relative.flex.h-full.flex-col,
+div.relative.flex.h-full.flex-col > div,
+div.relative.flex.h-full.flex-col > aside,
+div.relative.flex.h-full.flex-col nav,
+div.relative.flex.h-full.flex-col [role="navigation"],
+div.relative.flex.h-full.flex-col [data-testid*="sidebar"],
+div.relative.flex.h-full.flex-col [data-panel*="sidebar"],
+div.relative.flex.h-full.flex-col [class*="sidebar-surface"],
+div.relative.flex.h-full.flex-col [class*="bg-token-sidebar-surface"],
+div.relative.flex.h-full.flex-col [class*="bg-token-sidebar"],
+aside[class*="sidebar"],
+nav[class*="sidebar"],
+[data-testid="left-sidebar"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(14px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(135%) !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+/* Clear nested opaque layers commonly used by ChatGPT sidebar skins */
+div.relative.flex.h-full.flex-col [class*="sidebar-surface"] > *,
+div.relative.flex.h-full.flex-col [class*="bg-token-sidebar-surface"] > *,
+div.relative.flex.h-full.flex-col [class*="bg-token-sidebar"] > *,
+[data-testid="left-sidebar"] > * {
+  background-color: transparent !important;
+}
+
+/* Profile button: translucent acrylic */
+div[data-testid="accounts-profile-button"] {
+  background: rgba(255, 255, 255, 0.74) !important;
+  backdrop-filter: blur(16px) saturate(115%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(115%) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(0, 0, 0, 0.10) !important;
+  box-shadow: inset 0 0 0 9999px rgba(255, 255, 255, 0.04) !important;
+  color: rgba(18, 18, 18, 0.94) !important;
+}
+
+div[data-testid="accounts-profile-button"] * {
+  color: rgba(18, 18, 18, 0.94) !important;
+}
+
+/* Match two sidebar action buttons to accounts-profile-button style */
+button[class*="btn-secondary"][class*="py-2"][class*="group-focus-within/dialog"] {
+  background: rgba(28, 30, 36, 0.72) !important;
+  backdrop-filter: blur(16px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(120%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 0 0 9999px rgba(22, 24, 30, 0.14) !important;
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+
+button[class*="border-token"][class*="interactive"][class*="border-secondary-default"][class*="bg-token-main-surface-primary"] {
+  background: rgba(255, 255, 255, 0.74) !important;
+  backdrop-filter: blur(16px) saturate(115%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(115%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 0 0 9999px rgba(255, 255, 255, 0.04) !important;
+  color: rgba(18, 18, 18, 0.94) !important;
+}
+
+/* Keep same look in interaction states so base tokens do not override */
+button[class*="btn-secondary"][class*="py-2"][class*="group-focus-within/dialog"]:hover,
+button[class*="btn-secondary"][class*="py-2"][class*="group-focus-within/dialog"]:focus,
+button[class*="btn-secondary"][class*="py-2"][class*="group-focus-within/dialog"]:focus-visible,
+button[class*="border-token"][class*="interactive"][class*="border-secondary-default"][class*="bg-token-main-surface-primary"]:hover,
+button[class*="border-token"][class*="interactive"][class*="border-secondary-default"][class*="bg-token-main-surface-primary"]:focus,
+button[class*="border-token"][class*="interactive"][class*="border-secondary-default"][class*="bg-token-main-surface-primary"]:focus-visible {
+  background: rgba(255, 255, 255, 0.74) !important;
+  border: 1px solid rgba(0, 0, 0, 0.10) !important;
+  box-shadow: inset 0 0 0 9999px rgba(255, 255, 255, 0.04) !important;
+  color: rgba(18, 18, 18, 0.94) !important;
+}
+
+/* Composer surface in sidebar/header area */
+div[data-composer-surface="true"] {
+  background: rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(14px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(130%) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.30) !important;
+}
+
+/* Thread bottom wrapper: keep transparent to avoid white strip */
+div[data-testid="thread-bottom"] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Sidebar mask wrapper: transparent only (no border, no glass) */
+aside[class*="--sidebar-mask-bg"] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Real white-strip source: bottom container + content-fade gradient layers */
+#thread-bottom-container,
+#thread-bottom-container::before,
+#thread-bottom-container::after,
+#thread-bottom-container [class*="content-fade"],
+#thread-bottom-container [class*="bg-gradient"],
+#thread-bottom-container [class*="from-white"],
+#thread-bottom-container [class*="to-white"] {
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+}
