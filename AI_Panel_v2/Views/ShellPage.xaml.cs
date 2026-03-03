@@ -46,6 +46,7 @@ public sealed partial class ShellPage : Page
     private double _themeBlur;
     private bool _isChromeHiddenByWebCard;
     private bool _isCustomChromeApplied;
+    private readonly int _defaultFrameCacheSize;
     private readonly List<NavigationViewItem> _dynamicWebItems = new();
     private readonly List<NavigationViewItem> _dynamicPageItems = new();
     private readonly Dictionary<string, int> _pageTypeCounters = new()
@@ -72,6 +73,7 @@ public sealed partial class ShellPage : Page
         ViewModel = viewModel;
         _localSettingsService = App.GetService<ILocalSettingsService>();
         InitializeComponent();
+        _defaultFrameCacheSize = NavigationFrame.CacheSize;
 
         ViewModel.NavigationService.Frame = NavigationFrame;
         ViewModel.NavigationViewService.Initialize(NavigationViewControl);
@@ -286,6 +288,8 @@ public sealed partial class ShellPage : Page
     public void SetChromeHiddenForWebCard(bool hide)
     {
         _isChromeHiddenByWebCard = hide;
+        NavigationFrame.CacheSize = _defaultFrameCacheSize;
+
         // Keep top bar visible in card mode; only collapse page chrome elements.
         AppTitleBar.Visibility = Visibility.Visible;
         AppTitleBar.Height = 32;
@@ -293,7 +297,7 @@ public sealed partial class ShellPage : Page
         NavigationViewControl.IsPaneVisible = !hide;
         NavigationViewControl.IsTitleBarAutoPaddingEnabled = true;
         NavigationViewControl.IsBackButtonVisible = hide ? NavigationViewBackButtonVisible.Collapsed : NavigationViewBackButtonVisible.Visible;
-        NavigationViewControl.IsSettingsVisible = !hide;
+        NavigationViewControl.IsSettingsVisible = true;
     }
 
     private bool ApplyBackgroundImageOverlayIfAvailable()

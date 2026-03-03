@@ -15,6 +15,7 @@ using Windows.Foundation;
 using Windows.UI;
 using System.IO;
 using System.Globalization;
+using System.Text.Json;
 
 namespace AI_Panel_v2.Views;
 
@@ -40,6 +41,7 @@ public sealed partial class WebViewPage : Page
     private bool _isToolbarDragPrimed;
     private bool _isDraggingToolbar;
     private bool _isUnloaded;
+    private bool _isPointerInRevealHotZone;
     private Storyboard? _toolbarDockStoryboard;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _dockHideTimer;
     private uint _toolbarDragPointerId;
@@ -66,6 +68,12 @@ public sealed partial class WebViewPage : Page
         _dockHideTimer.Interval = TimeSpan.FromMilliseconds(240);
         _dockHideTimer.Tick += (_, _) =>
         {
+            if (_isUnloaded)
+            {
+                _dockHideTimer.Stop();
+                return;
+            }
+
             _dockHideTimer.Stop();
             if (_toolbarDockPosition != ToolbarDockPosition.Floating)
             {
@@ -89,6 +97,7 @@ public sealed partial class WebViewPage : Page
             await ApplyWebToolsThemeAsync();
             await LoadWebBackgroundImageAsync();
             await TryInjectWebBackgroundAsync();
+            await TryInjectWebBeautifyRulesAsync();
             UpdateWebCardModeIcon();
         }
         catch
@@ -99,6 +108,8 @@ public sealed partial class WebViewPage : Page
     private void WebViewPage_Unloaded(object sender, RoutedEventArgs e)
     {
         _isUnloaded = true;
+        _dockHideTimer.Stop();
+        _toolbarDockStoryboard?.Stop();
         WebView.NavigationCompleted -= WebView_NavigationCompleted;
     }
 
@@ -112,6 +123,7 @@ public sealed partial class WebViewPage : Page
         try
         {
             await TryInjectWebBackgroundAsync();
+            await TryInjectWebBeautifyRulesAsync();
         }
         catch
         {
@@ -123,6 +135,7 @@ public sealed partial class WebViewPage : Page
         _backgroundImageCssUrl = null;
         await LoadWebBackgroundImageAsync();
         await TryInjectWebBackgroundAsync();
+        await TryInjectWebBeautifyRulesAsync();
     }
 
     private async void ExtensionsToggleButton_Click(object sender, RoutedEventArgs e)
@@ -161,23 +174,17 @@ public sealed partial class WebViewPage : Page
 
             return;
         }
-
-        var shouldReveal = _toolbarDockPosition switch
-        {
-            ToolbarDockPosition.Top => p.Y <= 26,
-            ToolbarDockPosition.Left => p.X <= 26,
-            ToolbarDockPosition.Right => p.X >= ContentArea.ActualWidth - 26,
-            _ => true
-        };
-
-        if (shouldReveal != _isToolbarRevealed)
-        {
-            ApplyDockReveal(shouldReveal);
-        }
     }
 
     private void EdgeRevealArea_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
+        if (!IsMatchingRevealEdge(sender) || !IsPointerInsideRevealHotZone(sender, e.GetCurrentPoint(ContentArea).Position))
+        {
+            _isPointerInRevealHotZone = false;
+            return;
+        }
+
+        _isPointerInRevealHotZone = true;
         _dockHideTimer.Stop();
         if (_toolbarDockPosition != ToolbarDockPosition.Floating && !_isToolbarRevealed)
         {
@@ -185,10 +192,20 @@ public sealed partial class WebViewPage : Page
         }
     }
 
-    private void EdgeRevealArea_PointerExited(object sender, PointerRoutedEventArgs e) => TryHideDockedToolbar();
+    private void EdgeRevealArea_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (!IsMatchingRevealEdge(sender) || !_isPointerInRevealHotZone)
+        {
+            return;
+        }
+
+        _isPointerInRevealHotZone = false;
+        TryHideDockedToolbar();
+    }
 
     private void WebToolsHost_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
+        _isPointerInRevealHotZone = false;
         _dockHideTimer.Stop();
         if (_toolbarDockPosition != ToolbarDockPosition.Floating && !_isToolbarRevealed)
         {
@@ -200,13 +217,52 @@ public sealed partial class WebViewPage : Page
 
     private void TryHideDockedToolbar()
     {
-        if (_toolbarDockPosition == ToolbarDockPosition.Floating)
+        if (_isUnloaded || _toolbarDockPosition == ToolbarDockPosition.Floating)
         {
             return;
         }
 
         _dockHideTimer.Stop();
         _dockHideTimer.Start();
+    }
+
+    private bool IsMatchingRevealEdge(object sender)
+    {
+        if (sender is not FrameworkElement edge)
+        {
+            return false;
+        }
+
+        return _toolbarDockPosition switch
+        {
+            ToolbarDockPosition.Top => edge.Name == nameof(TopEdgeRevealArea),
+            ToolbarDockPosition.Left => edge.Name == nameof(LeftEdgeRevealArea),
+            ToolbarDockPosition.Right => edge.Name == nameof(RightEdgeRevealArea),
+            _ => false
+        };
+    }
+
+    private bool IsPointerInsideRevealHotZone(object sender, Point pointerInContentArea)
+    {
+        if (sender is not FrameworkElement edge || WebToolsHost.ActualWidth <= 0 || WebToolsHost.ActualHeight <= 0)
+        {
+            return false;
+        }
+
+        const double padding = 4;
+        return _toolbarDockPosition switch
+        {
+            ToolbarDockPosition.Top when edge.Name == nameof(TopEdgeRevealArea) =>
+                pointerInContentArea.X >= (WebToolsTransform.X - padding) &&
+                pointerInContentArea.X <= (WebToolsTransform.X + WebToolsHost.ActualWidth + padding),
+            ToolbarDockPosition.Left when edge.Name == nameof(LeftEdgeRevealArea) =>
+                pointerInContentArea.Y >= (WebToolsTransform.Y - padding) &&
+                pointerInContentArea.Y <= (WebToolsTransform.Y + WebToolsHost.ActualHeight + padding),
+            ToolbarDockPosition.Right when edge.Name == nameof(RightEdgeRevealArea) =>
+                pointerInContentArea.Y >= (WebToolsTransform.Y - padding) &&
+                pointerInContentArea.Y <= (WebToolsTransform.Y + WebToolsHost.ActualHeight + padding),
+            _ => false
+        };
     }
 
     private bool IsPointerInsideWebToolsHost(Point pointerInContentArea)
@@ -295,8 +351,8 @@ public sealed partial class WebViewPage : Page
         var maxX = Math.Max(ToolbarMargin, ContentArea.ActualWidth - WebToolsHost.ActualWidth - ToolbarMargin);
         WebToolsTransform.X = Math.Clamp((ContentArea.ActualWidth - WebToolsHost.ActualWidth) / 2, ToolbarMargin, maxX);
         WebToolsTransform.Y = ToolbarMargin;
-        _toolbarDockPosition = ToolbarDockPosition.Floating;
-        _isToolbarRevealed = true;
+        _toolbarDockPosition = ToolbarDockPosition.Top;
+        ApplyDockReveal(false);
     }
 
     private void SnapToolbarToDockOrFloating()
@@ -342,7 +398,7 @@ public sealed partial class WebViewPage : Page
 
     private void ApplyDockReveal(bool reveal)
     {
-        if (_toolbarDockPosition == ToolbarDockPosition.Floating)
+        if (_isUnloaded || _toolbarDockPosition == ToolbarDockPosition.Floating)
         {
             return;
         }
@@ -373,6 +429,11 @@ public sealed partial class WebViewPage : Page
 
     private void AnimateToolbarTo(double targetX, double targetY)
     {
+        if (_isUnloaded)
+        {
+            return;
+        }
+
         _toolbarDockStoryboard?.Stop();
         var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
         var duration = new Duration(TimeSpan.FromMilliseconds(420));
@@ -769,4 +830,107 @@ public sealed partial class WebViewPage : Page
         {
         }
     }
+
+    private async Task TryInjectWebBeautifyRulesAsync()
+    {
+        Uri? currentUri = null;
+        if (Uri.TryCreate(WebView.Source?.ToString(), UriKind.Absolute, out var sourceUri))
+        {
+            currentUri = sourceUri;
+        }
+        else if (ViewModel.WebViewService.Source != null)
+        {
+            currentUri = ViewModel.WebViewService.Source;
+        }
+
+        if (currentUri == null)
+        {
+            return;
+        }
+
+        var rules = await _localSettingsService.ReadSettingAsync<List<WebBeautifyRule>>(AppSettingKeys.WebBeautifyRules) ?? new List<WebBeautifyRule>();
+        foreach (var rule in rules.Where(r => r.IsEnabled))
+        {
+            if (!RuleMatches(rule.UrlPattern, currentUri))
+            {
+                continue;
+            }
+
+            var path = rule.FilePath?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                var content = await File.ReadAllTextAsync(path);
+                var extension = Path.GetExtension(path).ToLowerInvariant();
+                if (extension == ".css")
+                {
+                    await InjectCssAsync(content, path);
+                }
+                else if (extension == ".js")
+                {
+                    await WebView.ExecuteScriptAsync(content);
+                }
+                else if (extension == ".html")
+                {
+                    await InjectHtmlAsync(content, path);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private async Task InjectCssAsync(string css, string keyPath)
+    {
+        var styleId = "ai-panel-beautify-css-" + Math.Abs(keyPath.GetHashCode()).ToString(CultureInfo.InvariantCulture);
+        var styleIdLiteral = JsonSerializer.Serialize(styleId);
+        var cssLiteral = JsonSerializer.Serialize(css);
+        var script = $"(() => {{ const id = {styleIdLiteral}; const css = {cssLiteral}; let el = document.getElementById(id); if(!el) {{ el = document.createElement('style'); el.id = id; document.documentElement.appendChild(el); }} el.textContent = css; }})();";
+        await WebView.ExecuteScriptAsync(script);
+    }
+
+    private async Task InjectHtmlAsync(string html, string keyPath)
+    {
+        var hostId = "ai-panel-beautify-html-" + Math.Abs(keyPath.GetHashCode()).ToString(CultureInfo.InvariantCulture);
+        var hostIdLiteral = JsonSerializer.Serialize(hostId);
+        var htmlLiteral = JsonSerializer.Serialize(html);
+        var script = $"(() => {{ const id = {hostIdLiteral}; let host = document.getElementById(id); if(!host) {{ host = document.createElement('div'); host.id = id; host.style.display='none'; document.body.appendChild(host); }} host.innerHTML = {htmlLiteral}; }})();";
+        await WebView.ExecuteScriptAsync(script);
+    }
+
+    private static bool RuleMatches(string? pattern, Uri currentUri)
+    {
+        var p = pattern?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(p))
+        {
+            return false;
+        }
+
+        static string NormalizeHost(string host)
+        {
+            if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+            {
+                return host.Substring(4);
+            }
+
+            return host;
+        }
+
+        if (Uri.TryCreate(p, UriKind.Absolute, out var absolutePattern))
+        {
+            return string.Equals(NormalizeHost(absolutePattern.Host), NormalizeHost(currentUri.Host), StringComparison.OrdinalIgnoreCase);
+        }
+
+        var host = NormalizeHost(currentUri.Host);
+        var normalizedPattern = NormalizeHost(p);
+        return host.Equals(normalizedPattern, StringComparison.OrdinalIgnoreCase) ||
+               host.EndsWith("." + normalizedPattern, StringComparison.OrdinalIgnoreCase) ||
+               currentUri.AbsoluteUri.Contains(p, StringComparison.OrdinalIgnoreCase);
+    }
+
 }

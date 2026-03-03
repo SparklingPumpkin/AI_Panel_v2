@@ -20,6 +20,7 @@ using Windows.System;
 using Windows.UI;
 using Windows.UI.Core;
 using WinRT.Interop;
+using System.Globalization;
 
 using ColorSpectrumShape = Microsoft.UI.Xaml.Controls.ColorSpectrumShape;
 
@@ -36,12 +37,15 @@ public sealed partial class SettingsPage : Page
     private const string ThemeModeCustom = "Custom";
     private const double DefaultOpacity = 1.0;
     private const double DragStartThreshold = 8;
+    private const string DefaultChatGptBeautifyCssFile = "chatgpt-header.css";
     private readonly ILocalSettingsService _localSettingsService;
     private readonly IThemeSelectorService _themeSelectorService;
     private readonly INavigationService _navigationService;
     private readonly IWebViewService _webViewService;
     private readonly List<(TextBox NameBox, TextBox UrlBox)> _webItemEditors = new();
+    private readonly List<(TextBox UrlBox, TextBox FilePathBox, ToggleSwitch EnabledSwitch)> _webBeautifyRuleEditors = new();
     private List<WebItemSetting> _webItems = new();
+    private List<WebBeautifyRule> _webBeautifyRules = new();
     private HotKeySetting _pendingHotKey = new();
     private bool _isRecordingHotKey;
     private Border? _dragCard;
@@ -144,6 +148,7 @@ public sealed partial class SettingsPage : Page
             WebLayerOpacitySlider.Value = ClampOpacity(savedWebLayerOpacity ?? 0.5);
             var savedWebLayerBlur = await _localSettingsService.ReadSettingAsync<double?>(AppSettingKeys.WebLayerBlur);
             WebLayerBlurSlider.Value = ClampBlur(savedWebLayerBlur ?? 0);
+            await LoadWebBeautifySettingsAsync();
 
             LoadProgramFontOptions();
             await LoadProgramFontSelectionAsync();
@@ -224,6 +229,160 @@ public sealed partial class SettingsPage : Page
                 Url = FallbackWebUrl
             }
         ];
+    }
+
+    private static string GetDefaultWebBeautifyRootPath()
+    {
+        var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        return Path.Combine(docs, "AI_Panel_v2", "WebBeautify");
+    }
+
+    private async Task LoadWebBeautifySettingsAsync()
+    {
+        var rootPath = await _localSettingsService.ReadSettingAsync<string>(AppSettingKeys.WebBeautifyRootPath);
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            rootPath = GetDefaultWebBeautifyRootPath();
+            await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebBeautifyRootPath, rootPath);
+        }
+
+        try
+        {
+            Directory.CreateDirectory(rootPath);
+        }
+        catch
+        {
+        }
+
+        WebBeautifyRootPathTextBox.Text = rootPath;
+
+        _webBeautifyRules = await _localSettingsService.ReadSettingAsync<List<WebBeautifyRule>>(AppSettingKeys.WebBeautifyRules) ?? new List<WebBeautifyRule>();
+        EnsureDefaultChatGptBeautifyRule(rootPath, _webBeautifyRules);
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebBeautifyRules, _webBeautifyRules);
+        RenderWebBeautifyRuleEditors();
+        WebBeautifyRulesStatusTextBlock.Text = "Loaded";
+    }
+
+    private static void EnsureDefaultChatGptBeautifyRule(string rootPath, List<WebBeautifyRule> rules)
+    {
+        try
+        {
+            Directory.CreateDirectory(rootPath);
+            var cssPath = Path.Combine(rootPath, DefaultChatGptBeautifyCssFile);
+            File.WriteAllText(cssPath,
+@"#page-header,
+header#page-header,
+header[data-testid=""page-header""],
+main #page-header {
+  background: rgba(255, 255, 255, 0.10) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  overflow: hidden !important;
+}
+
+/* ChatGPT left sidebar container (open/collapsed variants) */
+div.relative.flex.h-full.flex-col,
+div.relative.flex.h-full.flex-col > div,
+div.relative.flex.h-full.flex-col > aside,
+div.relative.flex.h-full.flex-col nav,
+div.relative.flex.h-full.flex-col [role=""navigation""],
+div.relative.flex.h-full.flex-col [data-testid*=""sidebar""],
+div.relative.flex.h-full.flex-col [data-panel*=""sidebar""] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(14px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(135%) !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+");
+
+            if (!rules.Any(r =>
+                    string.Equals(r.UrlPattern?.Trim(), "www.chatgpt.com", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(r.UrlPattern?.Trim(), "chatgpt.com", StringComparison.OrdinalIgnoreCase)))
+            {
+                rules.Add(new WebBeautifyRule
+                {
+                    UrlPattern = "chatgpt.com",
+                    FilePath = cssPath,
+                    IsEnabled = true
+                });
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void RenderWebBeautifyRuleEditors()
+    {
+        _webBeautifyRuleEditors.Clear();
+        WebBeautifyRulesPanel.Children.Clear();
+
+        if (_webBeautifyRules.Count == 0)
+        {
+            WebBeautifyRulesPanel.Children.Add(new TextBlock
+            {
+                Text = "No rules. Click Add Rule.",
+                Foreground = new SolidColorBrush(Color.FromArgb(0xCC, 0x88, 0x88, 0x88))
+            });
+            return;
+        }
+
+        for (var i = 0; i < _webBeautifyRules.Count; i++)
+        {
+            var rule = _webBeautifyRules[i];
+            var row = new Grid
+            {
+                ColumnSpacing = 8,
+                Margin = new Thickness(0, 0, 0, 4),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var urlBox = new TextBox
+            {
+                Text = rule.UrlPattern,
+                PlaceholderText = "Host / URL pattern",
+                Height = 32
+            };
+            var filePathBox = new TextBox
+            {
+                Text = rule.FilePath,
+                PlaceholderText = "CSS/JS/HTML file path",
+                Height = 32
+            };
+            var enabledSwitch = new ToggleSwitch
+            {
+                IsOn = rule.IsEnabled,
+                OnContent = "On",
+                OffContent = "Off",
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var deleteButton = new Button
+            {
+                Content = "Delete",
+                Height = 32,
+                Tag = i
+            };
+            deleteButton.Click += DeleteWebBeautifyRuleButton_Click;
+
+            Grid.SetColumn(urlBox, 0);
+            Grid.SetColumn(filePathBox, 1);
+            Grid.SetColumn(enabledSwitch, 2);
+            Grid.SetColumn(deleteButton, 3);
+            row.Children.Add(urlBox);
+            row.Children.Add(filePathBox);
+            row.Children.Add(enabledSwitch);
+            row.Children.Add(deleteButton);
+            WebBeautifyRulesPanel.Children.Add(row);
+            _webBeautifyRuleEditors.Add((urlBox, filePathBox, enabledSwitch));
+        }
     }
 
     private void RenderWebItemEditors()
@@ -402,6 +561,84 @@ public sealed partial class SettingsPage : Page
 
         await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebViewDownloadPath, downloadPath);
         DownloadPathStatusTextBlock.Text = "Saved";
+    }
+
+    private async void SaveWebBeautifyRootPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        var path = WebBeautifyRootPathTextBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            WebBeautifyRootPathStatusTextBlock.Text = "Path invalid";
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(path);
+        }
+        catch
+        {
+            WebBeautifyRootPathStatusTextBlock.Text = "Path invalid";
+            return;
+        }
+
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebBeautifyRootPath, path);
+        WebBeautifyRootPathStatusTextBlock.Text = "Saved";
+    }
+
+    private void AddWebBeautifyRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _webBeautifyRules.Add(new WebBeautifyRule
+        {
+            UrlPattern = string.Empty,
+            FilePath = string.Empty,
+            IsEnabled = true
+        });
+        RenderWebBeautifyRuleEditors();
+        WebBeautifyRulesStatusTextBlock.Text = "Rule added";
+    }
+
+    private async void SaveWebBeautifyRulesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var rules = new List<WebBeautifyRule>();
+        foreach (var (urlBox, filePathBox, enabledSwitch) in _webBeautifyRuleEditors)
+        {
+            var pattern = urlBox.Text?.Trim() ?? string.Empty;
+            var filePath = filePathBox.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(pattern) || string.IsNullOrWhiteSpace(filePath))
+            {
+                continue;
+            }
+
+            rules.Add(new WebBeautifyRule
+            {
+                UrlPattern = pattern,
+                FilePath = filePath,
+                IsEnabled = enabledSwitch.IsOn
+            });
+        }
+
+        _webBeautifyRules = rules;
+        await _localSettingsService.SaveSettingAsync(AppSettingKeys.WebBeautifyRules, _webBeautifyRules);
+        WebBeautifyRulesStatusTextBlock.Text = "Rules saved";
+        await RefreshActiveWebPageBackgroundInjectionAsync();
+    }
+
+    private void DeleteWebBeautifyRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not int index)
+        {
+            return;
+        }
+
+        if (index < 0 || index >= _webBeautifyRules.Count)
+        {
+            return;
+        }
+
+        _webBeautifyRules.RemoveAt(index);
+        RenderWebBeautifyRuleEditors();
+        WebBeautifyRulesStatusTextBlock.Text = "Rule deleted";
     }
 
     private async void ChooseBackgroundImageButton_Click(object sender, RoutedEventArgs e)

@@ -10,19 +10,22 @@
 
     <Grid x:Name="ContentArea" PointerMoved="ContentArea_PointerMoved" SizeChanged="ContentArea_SizeChanged">
         <WebView2 x:Name="WebView" />
-        <Border HorizontalAlignment="Stretch"
+        <Border x:Name="TopEdgeRevealArea"
+                HorizontalAlignment="Stretch"
                 VerticalAlignment="Top"
                 Height="20"
                 Background="Transparent"
                 PointerEntered="EdgeRevealArea_PointerEntered"
                 PointerExited="EdgeRevealArea_PointerExited" />
-        <Border HorizontalAlignment="Left"
+        <Border x:Name="LeftEdgeRevealArea"
+                HorizontalAlignment="Left"
                 VerticalAlignment="Stretch"
                 Width="20"
                 Background="Transparent"
                 PointerEntered="EdgeRevealArea_PointerEntered"
                 PointerExited="EdgeRevealArea_PointerExited" />
-        <Border HorizontalAlignment="Right"
+        <Border x:Name="RightEdgeRevealArea"
+                HorizontalAlignment="Right"
                 VerticalAlignment="Stretch"
                 Width="20"
                 Background="Transparent"

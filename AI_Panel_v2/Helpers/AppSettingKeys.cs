@@ -51,4 +51,8 @@ public static class AppSettingKeys
     public const string ProgramFontBold = "ProgramFontBold";
 
     public const string ProgramFontItalic = "ProgramFontItalic";
+
+    public const string WebBeautifyRootPath = "WebBeautifyRootPath";
+
+    public const string WebBeautifyRules = "WebBeautifyRules";
 }

@@ -459,6 +459,25 @@
                             </StackPanel>
                         </Border>
 
+                        <TextBlock Margin="0,14,0,0" Text="Targeted Web Beautify" Style="{StaticResource Level2TitleStyle}" />
+                        <TextBlock Margin="0,4,0,0" TextWrapping="WrapWholeWords" Text="Configure CSS/JS/HTML files and apply them to specific websites." />
+                        <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8">
+                            <TextBox x:Name="WebBeautifyRootPathTextBox" Width="260" PlaceholderText="Beautify files root path" />
+                            <Button Content="Save Root Path" Click="SaveWebBeautifyRootPathButton_Click" />
+                            <TextBlock x:Name="WebBeautifyRootPathStatusTextBlock" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Border Margin="{StaticResource XSmallTopMargin}" Style="{StaticResource SecondarySectionCardStyle}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock Text="Rules (URL - file path - enable/disable - delete)" FontWeight="SemiBold" />
+                                    <Button Content="Add Rule" Click="AddWebBeautifyRuleButton_Click" />
+                                    <Button Content="Save Rules" Click="SaveWebBeautifyRulesButton_Click" />
+                                </StackPanel>
+                                <StackPanel x:Name="WebBeautifyRulesPanel" Spacing="6" />
+                                <TextBlock x:Name="WebBeautifyRulesStatusTextBlock" />
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Margin="0,14,0,0" Text="Browser Extensions (WebView2)" Style="{StaticResource Level2TitleStyle}" x:Name="ExtensionsTitleTextBlock" />
                         <TextBlock Margin="0,4,0,0" TextWrapping="WrapWholeWords" Text="Edge Add-ons can be browsed from the link below. Due WebView2 restrictions, install is from unpacked extension folder." />
                         <StackPanel Margin="{StaticResource XSmallTopMargin}" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -483,7 +502,7 @@
                                 <Button Content="Refresh Extensions" Click="RefreshExtensionsButton_Click" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBox x:Name="ExtensionFolderPathTextBox" Width="360" PlaceholderText="Unpacked extension folder path" />
+                                <TextBox x:Name="ExtensionFolderPathTextBox" Width="260" PlaceholderText="Unpacked extension folder path" />
                                 <Button Content="Install Extension" Click="InstallExtensionButton_Click" />
                                 <TextBlock x:Name="ExtensionStatusTextBlock" VerticalAlignment="Center" />
                             </StackPanel>
